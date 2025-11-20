@@ -82,26 +82,6 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
       }
   }
 
-  const getElementLabel = (elem: string) => {
-      switch(elem) {
-          case 'FEU': return "Aura de Feu";
-          case 'EAU': return "Aura d'Eau";
-          case 'TERRE': return "Aura de Terre";
-          case 'AIR': return "Aura d'Air";
-          default: return "Aura Mystique";
-      }
-  }
-
-  const getAuraQuote = (elem: string) => {
-       switch(elem) {
-          case 'FEU': return "Intense. Passionné. Instinctif.";
-          case 'EAU': return "Profond. Émotionnel. Intuitif.";
-          case 'TERRE': return "Stable. Loyal. Ancré.";
-          case 'AIR': return "Libre. Curieux. Changeant.";
-          default: return "En pleine formation...";
-      }
-  }
-
   return (
     <div className="flex flex-col h-full bg-aura-dark overflow-y-auto custom-scrollbar pb-24 relative">
       
@@ -124,55 +104,24 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
         </div>
       )}
 
-      {/* HERO HEADER : IMMERSIVE AURA */}
-      <div className="relative flex flex-col items-center overflow-hidden rounded-b-[3rem] bg-gradient-to-b from-gray-900 to-obsidian border-b border-white/5 pt-[max(env(safe-area-inset-top),2rem)]">
-        
-        {/* Ambient Background Light */}
-        <div className="absolute top-[-50%] left-[-50%] right-[-50%] h-[150%] opacity-30 pointer-events-none transition-colors duration-1000 blur-[100px]" style={{ background: `radial-gradient(circle, ${dominantColor}, transparent 70%)` }}></div>
-
-        {/* Avatar Reactor Core */}
-        <div className="relative mb-4 z-10 group mt-4">
-            {/* Rotating Ring */}
-            <div className="absolute -inset-3 rounded-full opacity-60 border border-dashed animate-spin-slow pointer-events-none" style={{ borderColor: dominantColor }}></div>
-            {/* Breathing Glow */}
-            <div className="absolute -inset-1 rounded-full blur-md animate-pulse-slow transition-colors duration-1000 opacity-70" style={{ backgroundColor: dominantColor }}></div>
-            
-            <div className="w-32 h-32 rounded-full p-1 bg-gray-900 relative">
-                <img src={user.imageUrl} className="w-full h-full rounded-full object-cover" />
-                
-                {/* Element Icon Badge */}
-                <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-full bg-gray-900 border-2 border-gray-800 flex items-center justify-center shadow-lg text-white" style={{ backgroundColor: dominantColor }}>
-                     {getElementIcon(aura.dominantElement || 'TERRE')}
-                </div>
-            </div>
+      {/* SIMPLE HEADER (Cleaned up) */}
+      <div className="relative flex flex-col items-center pt-[max(env(safe-area-inset-top),2rem)] pb-6">
+        <div className="w-24 h-24 rounded-full p-1 bg-gradient-to-br from-gray-800 to-black relative mb-4 border border-white/10">
+             <img src={user.imageUrl} className="w-full h-full rounded-full object-cover" />
+             <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-gray-900 border border-white/10 flex items-center justify-center text-white" style={{ backgroundColor: dominantColor }}>
+                 {getElementIcon(aura.dominantElement || 'TERRE')}
+             </div>
         </div>
-
-        <h2 className="text-4xl font-display font-bold text-white mb-1 relative z-10">{user.name}, {user.age}</h2>
-        
-        {/* Main Aura Label */}
-        <div className="flex flex-col items-center relative z-10 mt-2 mb-6">
-             <span className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/70 tracking-wide uppercase flex items-center gap-2" style={{ textShadow: `0 0 20px ${dominantColor}` }}>
-                {getElementLabel(aura.dominantElement || 'TERRE')}
-             </span>
-             <p className="text-xs text-gray-400 font-serif italic mt-1 opacity-80">"{getAuraQuote(aura.dominantElement || 'TERRE')}"</p>
-        </div>
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-4 gap-4 w-full max-w-xs px-4 mb-8 z-10">
-             <AuraStat label="Intensité" value={aura.intensity} color={dominantColor} delay={0} />
-             <AuraStat label="Profondeur" value={aura.depth} color={dominantColor} delay={100} />
-             <AuraStat label="Stabilité" value={aura.stability} color={dominantColor} delay={200} />
-             <AuraStat label="Ouverture" value={aura.openness} color={dominantColor} delay={300} />
-        </div>
-
+        <h2 className="text-3xl font-display font-bold text-white mb-1">{user.name}, {user.age}</h2>
+        <p className="text-sm text-gray-400">{user.mbti} • {user.attachment}</p>
       </div>
 
-      {/* SECTION: CENTRE DE CONTRÔLE (PROFILE ACTIONS) - ENCAPSULÉ */}
-      <div className="px-4 mt-6 relative z-20">
-           <div className="glass-panel rounded-3xl p-5 border border-white/10 bg-gray-900/60">
-               <h3 className="text-xs font-bold text-gray-300 uppercase tracking-widest flex items-center gap-2 mb-4">
-                   <User size={14} className="text-aura-accent"/> Mon Profil
-               </h3>
+      {/* SECTION: CADRE MON PROFIL (Restored) */}
+      <div className="px-4 mb-6">
+           <div className="glass-panel rounded-3xl p-5 border border-white/10 bg-gray-900/50">
+               <div className="flex items-center gap-2 mb-4 text-gray-400 uppercase text-xs font-bold tracking-wider">
+                    <User size={14} /> Mon Profil
+               </div>
                <div className="grid grid-cols-2 gap-3">
                    <button 
                        onClick={onEditProfile}
@@ -198,7 +147,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
       </div>
 
       {/* SECTION: CHRONIQUES DE L'AURA (EVOLUTION GRAPH) */}
-      <div className="px-4 mt-4 relative z-20">
+      <div className="px-4 mt-0 relative z-20">
           <div className="glass-panel rounded-3xl p-5 border border-white/10 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] backdrop-blur-xl bg-gray-900/80">
                
                {/* Header Simplifié et Informatif */}

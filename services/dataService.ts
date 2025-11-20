@@ -1,6 +1,6 @@
 
 import { supabase } from './supabaseClient';
-import { UserProfile, ChatSession, Message, AttachmentStyle, NotificationSettings, DiscoverySettings } from '../types';
+import { UserProfile, ChatSession, Message, AttachmentStyle, NotificationSettings, DiscoverySettings, SubscriptionTier } from '../types';
 import { calculateCompatibility } from './matchingService';
 import * as AuraEngine from './auraEngine';
 
@@ -153,6 +153,7 @@ export const updateMyProfile = async (profile: UserProfile): Promise<UserProfile
           daily_aura_answer: profile.dailyAuraAnswer,
           is_boosted: profile.isBoosted,
           is_premium: profile.isPremium,
+          subscription_tier: profile.subscriptionTier, // Update tier
           discovery_settings: profile.discoverySettings,
           aura: profile.aura // CRITIQUE: Met à jour l'aura vivante dans la DB
     };
@@ -165,11 +166,22 @@ export const updateMyProfile = async (profile: UserProfile): Promise<UserProfile
     return data ? mapDbProfileToApp(data) : profile;
 }
 
-export const upgradeToPremium = async (userId: string): Promise<boolean> => {
-    const { error } = await supabase.from('profiles').update({ is_premium: true }).eq('id', userId);
+export const upgradeToPremium = async (userId: string, tier: SubscriptionTier, durationDays: number = 30): Promise<boolean> => {
+    // Utilisation de la RPC PostgreSQL pour gérer les quotas (Rapports, SuperLikes, etc.)
+    const { error } = await supabase.rpc('upgrade_user_subscription', {
+        p_user_id: userId,
+        p_tier: tier,
+        p_duration_days: durationDays
+    });
+
     if (error) {
-        console.error("Premium upgrade failed", error);
-        return false;
+        console.error("Premium upgrade RPC failed", error);
+        // Fallback: Simple update if RPC fails (e.g. RPC not deployed yet)
+        const { error: fallbackError } = await supabase.from('profiles').update({ 
+            is_premium: true,
+            subscription_tier: tier 
+        }).eq('id', userId);
+        return !fallbackError;
     }
     return true;
 };
@@ -473,6 +485,7 @@ const mapDbProfileToApp = (dbProfile: any): UserProfile => {
         interests: dbProfile.interests || [],
         voiceAuraUrl: dbProfile.voice_aura_url, // Map the new field
         isPremium: dbProfile.is_premium,
+        subscriptionTier: dbProfile.subscription_tier || (dbProfile.is_premium ? SubscriptionTier.GOLD : SubscriptionTier.FREE), // Map tier
         dailyAuraAnswer: dbProfile.daily_aura_answer,
         isBoosted: dbProfile.is_boosted,
         aura: aura,

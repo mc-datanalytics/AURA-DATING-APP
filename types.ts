@@ -6,6 +6,13 @@ export enum AttachmentStyle {
   DISORGANIZED = 'Désorganisé'
 }
 
+export enum SubscriptionTier {
+  FREE = 'FREE',
+  SILVER = 'SILVER',
+  GOLD = 'GOLD',
+  INFINITY = 'INFINITY'
+}
+
 export interface NotificationSettings {
   matches: boolean;
   messages: boolean;
@@ -63,7 +70,11 @@ export interface UserProfile {
   hasSuperLikedUser?: boolean;
   dailyAuraAnswer?: string; 
   isBoosted?: boolean; 
-  isPremium?: boolean;
+  
+  // Monetization
+  isPremium?: boolean; // Legacy / Helper
+  subscriptionTier?: SubscriptionTier; // NOUVEAU
+
   notificationSettings?: NotificationSettings;
   discoverySettings?: DiscoverySettings;
 }
