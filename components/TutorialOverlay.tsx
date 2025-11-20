@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Hand, Heart, X, MousePointer2, Sparkles } from 'lucide-react';
 import { playClick, playMatchSuccess, playTransition } from '../services/audioService';
+import AuraLogo from './AuraLogo';
 
 interface TutorialOverlayProps {
   onComplete: () => void;
@@ -43,7 +44,7 @@ const TutorialOverlay: React.FC<TutorialOverlayProps> = ({ onComplete }) => {
       {step === 0 && (
           <div className="absolute inset-0 flex items-center justify-center animate-fade-in">
               <div className="text-center">
-                  <Sparkles className="w-16 h-16 text-aura-accent mx-auto mb-4 animate-spin-slow" />
+                  <AuraLogo size={100} className="mx-auto mb-4 animate-pulse-slow" />
                   <h1 className="text-4xl font-serif font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-200 to-pink-200">
                       Bienvenue sur Aura
                   </h1>

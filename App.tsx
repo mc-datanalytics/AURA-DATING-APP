@@ -14,6 +14,7 @@ import TutorialOverlay from './components/TutorialOverlay';
 import LikesReceivedView from './components/LikesReceivedView';
 import AuthView from './components/AuthView';
 import DiscoveryFiltersModal from './components/DiscoveryFiltersModal';
+import AuraLogo from './components/AuraLogo';
 import { MessageSquare, Users, Ghost, User as UserIcon, Sparkles, Zap, Crown, ArrowLeft, RotateCcw, Sliders } from 'lucide-react';
 import clsx from 'clsx';
 import { playClick, playTransition, playDailyAuraOpen, playPremiumOpen } from './services/audioService';
@@ -138,10 +139,21 @@ const App: React.FC = () => {
       if (!userProfile) return;
       playClick();
       
-      const restoredId = await DataService.undoLastSwipe(userProfile.id);
-      if (restoredId) {
-          await loadDiscovery(userProfile);
+      const restoredProfile = await DataService.restoreLastSwipe(userProfile);
+      if (restoredProfile) {
+          // Add back to the start of the deck
+          setProfiles(prev => [restoredProfile, ...prev]);
       }
+  };
+
+  const handleBlockUser = async (userId: string) => {
+      if (!userProfile) return;
+      await DataService.blockUser(userProfile.id, userId);
+      
+      // Update local state immediately
+      setMatches(prev => prev.filter(m => m.user.id !== userId));
+      setProfiles(prev => prev.filter(p => p.id !== userId));
+      setPendingLikes(prev => prev.filter(p => p.id !== userId));
   };
 
   const handleOverlaySendMessage = async () => {
@@ -281,28 +293,39 @@ const App: React.FC = () => {
   }
 
   // --- RENDERERS ---
+  
+  // Header adapté avec padding Safe Area (pt-[...])
   const renderDiscoveryHeader = () => (
-    <div className="relative z-50 flex flex-col bg-aura-dark/80 backdrop-blur-md border-b border-white/5 shadow-lg">
+    <div className="relative z-50 flex flex-col bg-obsidian/90 backdrop-blur-md border-b border-white/5 pt-[max(env(safe-area-inset-top),0.75rem)]">
         <div className="flex items-center justify-between px-4 py-3">
-             <div className="flex items-center gap-2">
-                 <div className="p-1.5 bg-aura-accent/20 rounded-lg"><Users className="w-5 h-5 text-aura-accent" /></div>
-                 <span className="font-serif font-bold text-xl text-transparent bg-clip-text bg-gradient-to-r from-purple-200 to-pink-200">Aura</span>
+             <div className="flex items-center gap-3">
+                 <AuraLogo size={32} />
+                 <span className="font-display font-bold text-2xl tracking-tight text-white">Aura</span>
              </div>
-             <div className="flex bg-black/30 rounded-full p-1 border border-white/5">
-                <button onClick={() => switchMode(DiscoveryMode.INCOGNITO)} className={clsx("px-3 py-1.5 rounded-full text-[10px] font-bold flex items-center gap-1.5 transition-all", mode === DiscoveryMode.INCOGNITO ? "bg-aura-accent text-white shadow-lg" : "text-gray-400 hover:text-white")}>
-                    <Ghost size={12} /> <span className="hidden sm:inline">Incognito</span>
+             
+             <div className="flex items-center gap-3">
+                {/* Filters Button Moved Here */}
+                <button onClick={() => { playClick(); setShowFiltersModal(true); }} className="w-9 h-9 rounded-full bg-carbon border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:border-white/30 transition-all">
+                    <Sliders size={16} />
                 </button>
-                <button onClick={() => switchMode(DiscoveryMode.CLAIRVOYANCE)} className={clsx("px-3 py-1.5 rounded-full text-[10px] font-bold flex items-center gap-1.5 transition-all", mode === DiscoveryMode.CLAIRVOYANCE ? "bg-aura-glow text-white shadow-lg" : "text-gray-400 hover:text-white")}>
-                    <Users size={12} /> <span className="hidden sm:inline">Clairvoyance</span>
-                </button>
+
+                <div className="flex bg-carbon rounded-full p-1 border border-white/5">
+                    <button onClick={() => switchMode(DiscoveryMode.INCOGNITO)} className={clsx("w-8 h-8 rounded-full flex items-center justify-center transition-all", mode === DiscoveryMode.INCOGNITO ? "bg-white/10 text-white shadow-inner" : "text-gray-500 hover:text-white")}>
+                        <Ghost size={14} />
+                    </button>
+                    <button onClick={() => switchMode(DiscoveryMode.CLAIRVOYANCE)} className={clsx("w-8 h-8 rounded-full flex items-center justify-center transition-all", mode === DiscoveryMode.CLAIRVOYANCE ? "bg-brand-mid text-white shadow-glow-brand" : "text-gray-500 hover:text-white")}>
+                        <Users size={14} />
+                    </button>
+                </div>
              </div>
         </div>
-        <div onClick={handleOpenDailyAura} className={clsx("w-full px-4 py-2 cursor-pointer transition-all duration-500 flex items-center justify-center gap-2 text-xs font-medium border-t border-white/5", userProfile?.isBoosted ? "bg-gradient-to-r from-yellow-500/10 to-amber-500/10 text-yellow-200 hover:bg-yellow-500/20" : "bg-gradient-to-r from-aura-mid/40 to-aura-accent/40 text-purple-200 hover:bg-aura-accent/50")}>
-             {userProfile?.isBoosted ? (<><Zap size={12} className="text-yellow-400 animate-pulse" fill="currentColor" /><span>Boost Actif</span></>) : (<><Sparkles size={12} className="text-aura-accent animate-spin-slow" /><span>Aura du jour : <span className="italic opacity-80">"{DAILY_QUESTION}"</span></span></>)}
+        <div onClick={handleOpenDailyAura} className={clsx("w-full px-4 py-2 cursor-pointer transition-all duration-500 flex items-center justify-center gap-2 text-xs font-medium border-t border-white/5", userProfile?.isBoosted ? "bg-gradient-to-r from-yellow-500/10 to-amber-500/10 text-yellow-200" : "bg-carbon text-gray-400 hover:bg-white/5")}>
+             {userProfile?.isBoosted ? (<><Zap size={12} className="text-yellow-400 animate-pulse" fill="currentColor" /><span>Boost Actif</span></>) : (<><Sparkles size={12} className="text-brand-end animate-pulse-slow" /><span>L'Oracle : <span className="italic opacity-80 text-white">"{DAILY_QUESTION}"</span></span></>)}
         </div>
     </div>
   );
 
+  // Navbar Flottante (Capsule Style)
   const renderBottomNav = () => {
     const p = location.pathname;
     const isDiscovery = p === '/discovery';
@@ -310,56 +333,57 @@ const App: React.FC = () => {
     const isSettings = p === '/settings' || p === '/profile/edit';
 
     return (
-        <div className="absolute bottom-0 w-full h-20 bg-gradient-to-t from-aura-dark to-transparent flex items-end justify-around pb-6 z-50 pointer-events-none">
-            <div className="pointer-events-auto flex w-full justify-around max-w-md mx-auto">
-                <button onClick={() => { playTransition(); navigate('/discovery'); }} className={clsx("flex flex-col items-center gap-1 transition-all active:scale-95 group", isDiscovery ? "text-aura-accent" : "text-gray-500")}>
-                    <div className={clsx("p-2.5 rounded-full transition-all duration-300", isDiscovery ? "bg-aura-accent/10 shadow-[0_0_15px_rgba(176,106,179,0.2)] -translate-y-1" : "group-hover:bg-white/5")}><Users size={22} /></div>
+        <div className="absolute bottom-0 w-full h-[calc(6rem+env(safe-area-inset-bottom))] bg-gradient-to-t from-obsidian via-obsidian/80 to-transparent flex items-end justify-center pb-[calc(1.5rem+env(safe-area-inset-bottom))] z-50 pointer-events-none">
+            <div className="pointer-events-auto flex w-auto bg-carbon/80 backdrop-blur-xl border border-white/10 rounded-full px-6 py-2 shadow-glass gap-8">
+                <button onClick={() => { playTransition(); navigate('/discovery'); }} className={clsx("flex flex-col items-center justify-center gap-1 transition-all active:scale-95 group relative", isDiscovery ? "text-white" : "text-gray-500")}>
+                    <div className={clsx("absolute inset-0 blur-lg opacity-50 transition-opacity", isDiscovery ? "bg-brand-start opacity-40" : "opacity-0")}></div>
+                    <Users size={24} className="relative z-10" strokeWidth={isDiscovery ? 2.5 : 2} />
+                    {isDiscovery && <div className="w-1 h-1 bg-brand-end rounded-full absolute -bottom-2"></div>}
                 </button>
-                <button onClick={() => { playTransition(); navigate('/matches'); }} className={clsx("flex flex-col items-center gap-1 relative transition-all active:scale-95 group", isMatches ? "text-aura-accent" : "text-gray-500")}>
-                    <div className={clsx("p-2.5 rounded-full transition-all duration-300", isMatches ? "bg-aura-accent/10 shadow-[0_0_15px_rgba(176,106,179,0.2)] -translate-y-1" : "group-hover:bg-white/5")}><MessageSquare size={22} /></div>
-                    {(matches.some(m => m.messages.length > 0 && m.messages[m.messages.length-1].senderId !== 'me') || pendingLikes.length > 0) && <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-aura-dark animate-pulse"></span>}
+                
+                <button onClick={() => { playTransition(); navigate('/matches'); }} className={clsx("flex flex-col items-center justify-center gap-1 transition-all active:scale-95 group relative", isMatches ? "text-white" : "text-gray-500")}>
+                    <div className={clsx("absolute inset-0 blur-lg opacity-50 transition-opacity", isMatches ? "bg-brand-start opacity-40" : "opacity-0")}></div>
+                    <div className="relative">
+                         <MessageSquare size={24} className="relative z-10" strokeWidth={isMatches ? 2.5 : 2} />
+                         {(matches.some(m => m.messages.length > 0 && m.messages[m.messages.length-1].senderId !== 'me') || pendingLikes.length > 0) && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-brand-end rounded-full border-2 border-carbon animate-pulse"></span>}
+                    </div>
+                    {isMatches && <div className="w-1 h-1 bg-brand-end rounded-full absolute -bottom-2"></div>}
                 </button>
-                <button onClick={() => { playTransition(); navigate('/settings'); }} className={clsx("flex flex-col items-center gap-1 transition-all active:scale-95 group", isSettings ? "text-aura-accent" : "text-gray-500")}>
-                    <div className={clsx("p-2.5 rounded-full transition-all duration-300", isSettings ? "bg-aura-accent/10 shadow-[0_0_15px_rgba(176,106,179,0.2)] -translate-y-1" : "group-hover:bg-white/5")}><UserIcon size={22} /></div>
+                
+                <button onClick={() => { playTransition(); navigate('/settings'); }} className={clsx("flex flex-col items-center justify-center gap-1 transition-all active:scale-95 group relative", isSettings ? "text-white" : "text-gray-500")}>
+                    <div className={clsx("absolute inset-0 blur-lg opacity-50 transition-opacity", isSettings ? "bg-brand-start opacity-40" : "opacity-0")}></div>
+                    <UserIcon size={24} className="relative z-10" strokeWidth={isSettings ? 2.5 : 2} />
+                    {isSettings && <div className="w-1 h-1 bg-brand-end rounded-full absolute -bottom-2"></div>}
                 </button>
             </div>
         </div>
     );
   };
 
-  // If loading, use the main layout wrapper but show skeleton content to simulate "App is ready but fetching"
   if (isLoading) {
       return (
-        <div className="relative w-full h-[100dvh] overflow-hidden bg-aura-dark flex justify-center sm:items-center sm:bg-gray-900">
-            <div className="w-full max-w-md h-full sm:h-[90dvh] relative bg-aura-dark sm:rounded-[2.5rem] sm:border-[8px] sm:border-gray-800 shadow-2xl overflow-hidden flex flex-col ring-8 ring-black/50">
-                 <div className="flex flex-col h-full">
-                     {/* Fake Header for loading state */}
-                     <div className="relative z-50 flex flex-col bg-aura-dark/80 backdrop-blur-md border-b border-white/5 shadow-lg">
-                        <div className="flex items-center justify-between px-4 py-3">
-                            <div className="flex items-center gap-2">
-                                <div className="p-1.5 bg-aura-accent/20 rounded-lg"><Users className="w-5 h-5 text-aura-accent" /></div>
-                                <span className="font-serif font-bold text-xl text-transparent bg-clip-text bg-gradient-to-r from-purple-200 to-pink-200">Aura</span>
-                            </div>
-                        </div>
-                     </div>
-                     <div className="flex-1 flex items-center justify-center p-4">
-                        <SkeletonCard />
-                     </div>
+        <div className="relative w-full h-[100dvh] overflow-hidden bg-obsidian flex justify-center sm:items-center sm:bg-gray-950">
+            <div className="w-full max-w-md h-full sm:h-[90dvh] relative bg-obsidian sm:rounded-[2.5rem] sm:border-[8px] sm:border-gray-900 shadow-2xl overflow-hidden flex flex-col ring-1 ring-white/10">
+                 <div className="flex flex-col h-full items-center justify-center">
+                    <div className="relative animate-pulse-slow">
+                        <AuraLogo size={100} />
+                    </div>
                  </div>
             </div>
         </div>
       )
   }
 
-  // Determine if bottom nav should be shown
   const showBottomNav = ['/discovery', '/matches', '/settings', '/likes'].includes(location.pathname);
 
   return (
-    <div className="relative w-full h-[100dvh] overflow-hidden bg-aura-dark text-white font-sans selection:bg-aura-accent selection:text-white flex justify-center sm:items-center sm:bg-gray-900">
-      <div className="w-full max-w-md h-full sm:h-[90dvh] relative bg-aura-dark sm:rounded-[2.5rem] sm:border-[8px] sm:border-gray-800 shadow-2xl overflow-hidden flex flex-col ring-8 ring-black/50">
+    // UTILISATION DE 100dvh POUR MOBILE
+    <div className="relative w-full h-[100dvh] overflow-hidden bg-obsidian text-white font-body selection:bg-brand-mid selection:text-white flex justify-center sm:items-center sm:bg-black">
+      <div className="w-full max-w-md h-full sm:h-[90dvh] relative bg-obsidian sm:rounded-[2.5rem] sm:border-[8px] sm:border-gray-900 shadow-2xl overflow-hidden flex flex-col ring-1 ring-white/10">
         
-        <div className="hidden sm:block absolute -inset-[2px] rounded-[2.6rem] border border-white/10 pointer-events-none z-[100]"></div>
-        
+        {/* Scanline effect overlay (optional aesthetic) */}
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%),linear-gradient(90deg,rgba(255,0,0,0.03),rgba(0,255,0,0.01),rgba(0,0,255,0.03))] z-[100] bg-[length:100%_2px,3px_100%] opacity-20"></div>
+
         {showTutorial && <TutorialOverlay onComplete={() => setShowTutorial(false)} />}
         {showDailyModal && <DailyAuraModal question={DAILY_QUESTION} onClose={() => setShowDailyModal(false)} onComplete={handleDailyAuraComplete} />}
         {showPremiumModal && <PremiumModal onClose={() => setShowPremiumModal(false)} onUpgradeSuccess={handlePremiumSuccess} />}
@@ -379,26 +403,41 @@ const App: React.FC = () => {
             <Route path="/discovery" element={userProfile && (
                 <div className="flex flex-col h-full">
                     {renderDiscoveryHeader()}
-                    <div className="flex-1 relative flex items-center justify-center p-4 pb-20">
+                    <div className="flex-1 relative flex flex-col items-center justify-center p-4 pb-36">
                         {profiles.length > 0 ? (
-                            <ProfileCard key={profiles[0].id} profile={profiles[0]} currentUser={userProfile} mode={mode} onSwipe={handleSwipe} />
+                            <ProfileCard 
+                                key={profiles[0].id} 
+                                profile={profiles[0]} 
+                                currentUser={userProfile} 
+                                mode={mode} 
+                                onSwipe={handleSwipe}
+                                onBlock={handleBlockUser}
+                                onRewind={handleRewind} 
+                            />
                         ) : (
-                            <div className="text-gray-500 flex flex-col items-center animate-pulse">
-                                <Ghost className="mb-4 opacity-50" size={40} />
-                                <span className="text-sm">Plus aucun profil dans votre zone...</span>
-                                <span className="text-xs mt-2">Revenez plus tard ou ajustez vos filtres.</span>
-                                <button 
-                                    onClick={() => setShowFiltersModal(true)}
-                                    className="mt-4 px-4 py-2 bg-white/10 rounded-full text-xs font-bold hover:bg-white/20 transition-colors"
-                                >
-                                    Ajuster les filtres
-                                </button>
+                            <div className="relative w-full h-full flex flex-col items-center justify-center">
+                                {/* Rewind Button for Empty State */}
+                                <div className="absolute top-0 left-4 sm:left-0 z-20">
+                                    <button 
+                                        onClick={handleRewind}
+                                        className="w-10 h-10 rounded-full bg-black/20 backdrop-blur-md border border-yellow-500/30 text-yellow-500 flex items-center justify-center shadow-[0_0_15px_rgba(234,179,8,0.15)] hover:bg-yellow-500/10 hover:scale-110 transition-all active:scale-95 group"
+                                    >
+                                        <RotateCcw size={18} className="group-hover:-rotate-90 transition-transform duration-500" />
+                                    </button>
+                                </div>
+
+                                <div className="text-gray-500 flex flex-col items-center animate-pulse">
+                                    <Ghost className="mb-4 opacity-50" size={40} />
+                                    <span className="text-sm font-medium">Le vide cosmique...</span>
+                                    <button 
+                                        onClick={() => setShowFiltersModal(true)}
+                                        className="mt-4 px-6 py-2 glass-button rounded-full text-xs font-bold hover:bg-white/10 transition-colors uppercase tracking-widest"
+                                    >
+                                        Ajuster les ondes
+                                    </button>
+                                </div>
                             </div>
                         )}
-                        <div className="absolute top-6 left-6 flex flex-col gap-3">
-                            <button onClick={handleRewind} className="p-3 rounded-full bg-black/40 backdrop-blur text-white/60 hover:text-white hover:bg-black/60 border border-white/5 transition-all active:scale-90 shadow-lg"><RotateCcw size={20} /></button>
-                            <button onClick={() => { playClick(); setShowFiltersModal(true); }} className="p-3 rounded-full bg-black/40 backdrop-blur text-white/60 hover:text-white hover:bg-black/60 border border-white/5 transition-all active:scale-90 shadow-lg"><Sliders size={20} /></button>
-                        </div>
                     </div>
                 </div>
             )} />
@@ -406,46 +445,48 @@ const App: React.FC = () => {
             {/* Matches List */}
             <Route path="/matches" element={userProfile && (
                 <div className="flex flex-col h-full">
-                    <div className="p-6 pb-4 border-b border-white/5 bg-aura-dark/80 backdrop-blur z-10">
-                        <h2 className="text-3xl font-serif font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-200 to-white">Connexions</h2>
+                    <div className="p-6 pb-4 border-b border-white/5 bg-obsidian/90 backdrop-blur z-10 pt-[max(env(safe-area-inset-top),1.5rem)]">
+                        <h2 className="text-3xl font-display font-bold text-white">Connexions</h2>
                     </div>
                     <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar pb-24">
                         <div 
                             onClick={() => navigate('/likes')}
-                            className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-yellow-500/10 to-amber-500/10 border border-yellow-500/30 flex items-center justify-between cursor-pointer hover:bg-yellow-500/20 transition-all group"
+                            className="mb-6 p-1 rounded-2xl bg-gradient-to-r from-brand-mid to-brand-end p-[1px] cursor-pointer active:scale-[0.98] transition-transform"
                         >
-                            <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 to-amber-600 flex items-center justify-center shadow-lg relative">
-                                        <Crown size={20} className="text-white" fill="currentColor" />
-                                        {pendingLikes.length > 0 && <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-[10px] font-bold border border-aura-dark animate-bounce">{pendingLikes.length}</div>}
-                                    </div>
-                                    <div>
-                                        <h3 className="font-bold text-yellow-100 text-sm group-hover:text-white transition-colors">Ils vous ont liké</h3>
-                                        <p className="text-xs text-yellow-200/60">Découvrez qui s'intéresse à vous.</p>
-                                    </div>
+                            <div className="bg-carbon rounded-2xl p-4 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                        <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center shadow-glow-brand relative border border-white/10">
+                                            <Crown size={20} className="text-brand-end" fill="currentColor" />
+                                            {pendingLikes.length > 0 && <div className="absolute -top-1 -right-1 w-5 h-5 bg-brand-end rounded-full flex items-center justify-center text-[10px] font-bold border border-obsidian animate-bounce text-white">{pendingLikes.length}</div>}
+                                        </div>
+                                        <div>
+                                            <h3 className="font-bold text-white text-sm">Âmes intéressées</h3>
+                                            <p className="text-xs text-gray-400">Voir qui résonne avec vous</p>
+                                        </div>
+                                </div>
+                                <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-gray-400"><ArrowLeft size={16} className="rotate-180" /></div>
                             </div>
-                            <div className="bg-yellow-500/20 p-2 rounded-full text-yellow-400 group-hover:translate-x-1 transition-transform"><ArrowLeft size={16} className="rotate-180" /></div>
                         </div>
 
-                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Vos Conversations</h3>
+                        <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-4 ml-2">Discussions</h3>
                         {matches.length === 0 && (
                             <div className="flex flex-col items-center justify-center h-32 opacity-40">
                                 <Ghost className="w-10 h-10 mb-2 text-gray-600" />
-                                <p className="text-xs text-gray-500">C'est calme par ici...</p>
+                                <p className="text-xs text-gray-500">Aucune résonance pour le moment.</p>
                             </div>
                         )}
                         {matches.map(match => (
-                            <div key={match.matchId} onClick={() => openChat(match)} className="glass-card p-3 rounded-2xl flex items-center gap-4 cursor-pointer hover:bg-white/5 transition-all border border-white/5 active:scale-[0.98]">
-                                <div className="w-14 h-14 rounded-full overflow-hidden bg-gray-800 relative border border-white/10 shadow-md">
-                                    {match.isRevealed ? <img src={match.user.imageUrl} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-black"><Ghost className="w-6 h-6 text-aura-accent opacity-50"/></div>}
+                            <div key={match.matchId} onClick={() => openChat(match)} className="glass-panel p-3 rounded-2xl flex items-center gap-4 cursor-pointer hover:bg-white/5 transition-all active:scale-[0.98]">
+                                <div className="w-14 h-14 rounded-full overflow-hidden bg-carbon relative border border-white/10 shadow-md">
+                                    {match.isRevealed ? <img src={match.user.imageUrl} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-black"><Ghost className="w-6 h-6 text-brand-mid opacity-50"/></div>}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex justify-between items-baseline">
-                                        <h3 className="font-bold text-lg truncate text-gray-100">{match.user.name}</h3>
-                                        <span className="text-[10px] text-aura-accent font-bold bg-aura-accent/10 px-2 py-0.5 rounded-full">{match.user.compatibilityScore}%</span>
+                                        <h3 className="font-display font-semibold text-lg truncate text-white">{match.user.name}</h3>
+                                        <span className="text-[10px] text-brand-end font-bold bg-brand-end/10 px-2 py-0.5 rounded-full border border-brand-end/20">{match.user.compatibilityScore}%</span>
                                     </div>
-                                    <p className="text-xs text-gray-400 truncate pr-4 mt-0.5">
-                                        {match.messages.length > 0 ? <span className={match.messages[match.messages.length-1].senderId === 'me' ? 'text-gray-500' : 'text-gray-300'}>{match.messages[match.messages.length-1].text}</span> : <span className="italic text-aura-accent/70 flex items-center gap-1"><Sparkles size={10}/> La magie attend...</span>}
+                                    <p className="text-xs text-gray-400 truncate pr-4 mt-0.5 font-medium">
+                                        {match.messages.length > 0 ? <span className={match.messages[match.messages.length-1].senderId === 'me' ? 'text-gray-500' : 'text-gray-300'}>{match.messages[match.messages.length-1].text}</span> : <span className="italic text-brand-mid flex items-center gap-1"><Sparkles size={10}/> La magie attend...</span>}
                                     </p>
                                 </div>
                             </div>
@@ -461,7 +502,12 @@ const App: React.FC = () => {
 
             {/* Chat View */}
             <Route path="/chat/:matchId" element={
-                <ChatView sessions={matches} mode={mode} onUpdateMessages={handleUpdateChatMessages} />
+                <ChatView 
+                    sessions={matches} 
+                    mode={mode} 
+                    onUpdateMessages={handleUpdateChatMessages} 
+                    onBlockUser={handleBlockUser} 
+                />
             } />
 
             {/* Settings View */}
@@ -491,9 +537,9 @@ const App: React.FC = () => {
 
             {/* Profile Preview */}
             <Route path="/profile/preview" element={userProfile && (
-                <div className="flex flex-col h-full relative bg-gray-900">
-                     <div className="absolute top-0 left-0 right-0 p-4 z-50 bg-gradient-to-b from-black/50 to-transparent">
-                        <button onClick={() => navigate('/settings')} className="flex items-center gap-2 text-white bg-black/30 backdrop-blur px-4 py-2 rounded-full border border-white/10"><ArrowLeft size={16} /> Retour</button>
+                <div className="flex flex-col h-full relative bg-obsidian">
+                     <div className="absolute top-0 left-0 right-0 p-4 z-50 pt-[max(env(safe-area-inset-top),1rem)]">
+                        <button onClick={() => navigate('/settings')} className="flex items-center gap-2 text-white glass-button px-4 py-2 rounded-full"><ArrowLeft size={16} /> Retour</button>
                      </div>
                      <div className="flex-1 flex items-center justify-center p-4">
                         <ProfileCard profile={{...userProfile, compatibilityScore: 100, compatibilityLabel: "L'Amour de Soi"}} mode={DiscoveryMode.CLAIRVOYANCE} onSwipe={() => {}} />

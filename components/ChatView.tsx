@@ -1,15 +1,18 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatSession, DiscoveryMode, Message } from '../types';
-import { Send, ArrowLeft, Unlock, Sparkles, Flame, Moon } from 'lucide-react';
+import { Send, ArrowLeft, Unlock, Sparkles, Flame, Moon, Shield, MoreVertical } from 'lucide-react';
 import { generateChatReply } from '../services/geminiService';
 import { playClick, playCardFlip } from '../services/audioService';
 import { subscribeToChat, getCurrentUserId } from '../services/dataService';
 import { useParams, useNavigate } from 'react-router-dom';
+import ReportModal from './ReportModal';
 
 interface ChatViewProps {
   sessions: ChatSession[];
   mode: DiscoveryMode;
   onUpdateMessages: (matchId: string, messages: Message[]) => void;
+  onBlockUser: (userId: string) => void;
 }
 
 // Ice Breaker Data
@@ -31,7 +34,7 @@ const ICE_BREAKERS = {
   ]
 };
 
-const ChatView: React.FC<ChatViewProps> = ({ sessions, mode, onUpdateMessages }) => {
+const ChatView: React.FC<ChatViewProps> = ({ sessions, mode, onUpdateMessages, onBlockUser }) => {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
 
@@ -40,6 +43,7 @@ const ChatView: React.FC<ChatViewProps> = ({ sessions, mode, onUpdateMessages })
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [isRevealed, setIsRevealed] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
   
   // Ice Breaker State
   const [showIceBreaker, setShowIceBreaker] = useState(false);
@@ -145,7 +149,22 @@ const ChatView: React.FC<ChatViewProps> = ({ sessions, mode, onUpdateMessages })
   }
 
   return (
-    <div className="flex flex-col h-full bg-aura-dark">
+    <div className="flex flex-col h-full bg-aura-dark relative">
+      
+      {showReportModal && (
+          <ReportModal 
+            userName={session.user.name} 
+            onClose={() => setShowReportModal(false)}
+            onReport={(reason, details, block) => {
+                if (block) {
+                    onBlockUser(session.user.id);
+                    navigate('/matches');
+                }
+                // Le report API est géré dans App.tsx via le callback onBlockUser ou ici
+            }}
+          />
+      )}
+
       {/* Header */}
       <div className="flex items-center p-4 bg-aura-light/50 backdrop-blur border-b border-white/5 z-20">
         <button onClick={handleBack} className="mr-4 text-gray-300 hover:text-white">
@@ -178,15 +197,24 @@ const ChatView: React.FC<ChatViewProps> = ({ sessions, mode, onUpdateMessages })
              <span>{session.user.mbti}</span> • <span>{session.user.attachment}</span>
           </div>
         </div>
-
-        {!isRevealed && messages.length > 2 && (
+        
+        <div className="flex items-center gap-2">
+            {!isRevealed && messages.length > 2 && (
+                <button 
+                    onClick={handleReveal}
+                    className="text-xs bg-aura-accent/20 text-aura-accent px-3 py-1.5 rounded-full border border-aura-accent/50 hover:bg-aura-accent hover:text-white transition-colors flex items-center gap-1"
+                >
+                    <Unlock size={12} /> Dévoiler
+                </button>
+            )}
+            
             <button 
-                onClick={handleReveal}
-                className="text-xs bg-aura-accent/20 text-aura-accent px-3 py-1.5 rounded-full border border-aura-accent/50 hover:bg-aura-accent hover:text-white transition-colors flex items-center gap-1"
+                onClick={() => setShowReportModal(true)}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-gray-400 hover:text-red-400 transition-colors"
             >
-                <Unlock size={12} /> Dévoiler
+                <Shield size={18} />
             </button>
-        )}
+        </div>
       </div>
 
       {/* Messages Area */}

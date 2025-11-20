@@ -4,6 +4,7 @@ import { UserProfile, NotificationSettings } from '../types';
 import { Volume2, VolumeX, Crown, Edit, LogOut, Shield, Sliders, Trash2, AlertTriangle, Eye, Bell, MessageCircle, Zap, Sparkles, ThumbsUp, Flame, Droplets, Mountain, Wind, ChevronRight, Info } from 'lucide-react';
 import { playClick } from '../services/audioService';
 import { getElementColor } from '../services/auraEngine';
+import SecurityHelpModal from './SecurityHelpModal';
 import clsx from 'clsx';
 
 interface UserProfileViewProps {
@@ -35,6 +36,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [confirmAction, setConfirmAction] = useState<'LOGOUT' | 'DELETE' | null>(null);
   const [showNotifSettings, setShowNotifSettings] = useState(false);
   const [showAuraDetail, setShowAuraDetail] = useState(false);
+  const [showSecurityModal, setShowSecurityModal] = useState(false);
 
   const settings = user.notificationSettings || {
       matches: true, messages: true, likes: true, dailyAura: true, superLikes: true
@@ -85,6 +87,10 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
   return (
     <div className="flex flex-col h-full bg-aura-dark overflow-y-auto custom-scrollbar pb-24 relative">
       
+      {showSecurityModal && (
+          <SecurityHelpModal onClose={() => setShowSecurityModal(false)} />
+      )}
+
       {/* Confirmation Overlay */}
       {confirmAction && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-fade-in">
@@ -261,7 +267,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
               <SettingItem 
                 icon={<Shield size={20} className="text-gray-400" />}
                 label="Sécurité & Aide"
-                onClick={() => playClick()}
+                onClick={() => { playClick(); setShowSecurityModal(true); }}
                 hasArrow
               />
           </div>

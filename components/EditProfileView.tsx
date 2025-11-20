@@ -1,9 +1,9 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile } from '../types';
-import { ArrowLeft, Save, Plus, X, Star, Image as ImageIcon, Loader2, Info } from 'lucide-react';
+import { ArrowLeft, Save, Plus, X, Star, Image as ImageIcon, Loader2, Info, Mic, Square, Play, Trash2 } from 'lucide-react';
 import { playClick } from '../services/audioService';
-import { uploadPhoto } from '../services/dataService';
+import { uploadPhoto, uploadVoiceAura } from '../services/dataService';
 
 interface EditProfileViewProps {
   user: UserProfile;
@@ -29,8 +29,25 @@ const EditProfileView: React.FC<EditProfileViewProps> = ({ user, onSave, onCance
   const [bio, setBio] = useState(user.bio);
   const [selectedInterests, setSelectedInterests] = useState<string[]>(user.interests);
   const [isUploading, setIsUploading] = useState(false);
+  const [voiceAuraUrl, setVoiceAuraUrl] = useState<string | undefined>(user.voiceAuraUrl);
   
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // --- VOICE RECORDING STATE ---
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [tempAudioUrl, setTempAudioUrl] = useState<string | null>(null);
+  
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const timerIntervalRef = useRef<number | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioPlayerRef = useRef<HTMLAudioElement>(null);
+
+  // Cleanup blob URL on unmount
+  useEffect(() => {
+      return () => {
+          if (tempAudioUrl) URL.revokeObjectURL(tempAudioUrl);
+      }
+  }, []);
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -84,21 +101,102 @@ const EditProfileView: React.FC<EditProfileViewProps> = ({ user, onSave, onCance
     }
   };
 
-  const handleSave = () => {
+  // --- VOICE HANDLERS ---
+
+  const startRecording = async () => {
+      playClick(600);
+      setAudioBlob(null);
+      setTempAudioUrl(null);
+      audioChunksRef.current = [];
+      
+      try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const mediaRecorder = new MediaRecorder(stream);
+          mediaRecorderRef.current = mediaRecorder;
+
+          mediaRecorder.ondataavailable = (event) => {
+              if (event.data.size > 0) {
+                  audioChunksRef.current.push(event.data);
+              }
+          };
+
+          mediaRecorder.onstop = () => {
+              const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+              setAudioBlob(blob);
+              const url = URL.createObjectURL(blob);
+              setTempAudioUrl(url);
+              stream.getTracks().forEach(track => track.stop()); // Stop mic
+          };
+
+          mediaRecorder.start();
+          setIsRecording(true);
+          setRecordingTime(0);
+          
+          timerIntervalRef.current = window.setInterval(() => {
+              setRecordingTime(prev => {
+                  if (prev >= 20) {
+                      stopRecording(); // Max duration reached
+                      return prev;
+                  }
+                  return prev + 1;
+              });
+          }, 1000);
+
+      } catch (err) {
+          console.error("Mic Error:", err);
+          alert("Impossible d'accéder au micro. Vérifiez vos permissions.");
+      }
+  };
+
+  const stopRecording = () => {
+      if (mediaRecorderRef.current && isRecording) {
+          mediaRecorderRef.current.stop();
+          setIsRecording(false);
+          if (timerIntervalRef.current) {
+              clearInterval(timerIntervalRef.current);
+              timerIntervalRef.current = null;
+          }
+          playClick(500);
+      }
+  };
+
+  const deleteVoiceAura = () => {
+      playClick(600);
+      setVoiceAuraUrl(undefined);
+      setAudioBlob(null);
+      setTempAudioUrl(null);
+  }
+
+  const handleSave = async () => {
       if (photos.length === 0) {
           alert("Il vous faut au moins une photo.");
           return;
       }
       playClick(900);
+      setIsUploading(true);
+
+      let finalVoiceUrl = voiceAuraUrl;
+
+      // Upload Voice Aura if new one recorded
+      if (audioBlob) {
+          try {
+              const url = await uploadVoiceAura(audioBlob);
+              if (url) finalVoiceUrl = url;
+          } catch (err) {
+              console.error("Voice Upload Failed", err);
+          }
+      }
       
       const updatedUser: UserProfile = {
           ...user,
           bio,
           interests: selectedInterests,
           imageUrl: photos[0], // Main photo is always index 0
-          photos: photos
+          photos: photos,
+          voiceAuraUrl: finalVoiceUrl
       };
       
+      setIsUploading(false);
       onSave(updatedUser);
   };
 
@@ -113,9 +211,10 @@ const EditProfileView: React.FC<EditProfileViewProps> = ({ user, onSave, onCance
             <h2 className="text-lg font-serif font-bold text-white">Modifier le profil</h2>
             <button 
                 onClick={handleSave} 
-                className="text-aura-accent font-bold hover:text-white transition-colors p-2 flex items-center gap-1"
+                disabled={isUploading}
+                className="text-aura-accent font-bold hover:text-white transition-colors p-2 flex items-center gap-1 disabled:opacity-50"
             >
-                <Save size={18} /> Sauver
+                {isUploading ? <Loader2 className="animate-spin" size={18}/> : <><Save size={18} /> Sauver</>}
             </button>
         </div>
 
@@ -128,7 +227,7 @@ const EditProfileView: React.FC<EditProfileViewProps> = ({ user, onSave, onCance
                     <ImageIcon size={14}/> Mes Photos ({photos.length}/6)
                 </h3>
 
-                {/* Guidelines Block - ADDED FOR QUALITY */}
+                {/* Guidelines Block */}
                 <div className="bg-white/5 border border-white/10 rounded-xl p-3 mb-4">
                   <div className="flex items-start gap-3">
                       <Info size={16} className="text-aura-accent shrink-0 mt-0.5"/>
@@ -190,6 +289,68 @@ const EditProfileView: React.FC<EditProfileViewProps> = ({ user, onSave, onCance
                              />
                         </label>
                     )}
+                </div>
+            </section>
+            
+            {/* VOICE AURA SECTION */}
+            <section>
+                 <h3 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-2">
+                    <Mic size={14}/> Aura Vocale
+                </h3>
+                <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                     <p className="text-xs text-gray-300 mb-4">Enregistrez une courte présentation vocale (max 20s). Parlez de ce qui vous fait vibrer.</p>
+                     
+                     <div className="flex items-center gap-4">
+                         {isRecording ? (
+                             <button onClick={stopRecording} className="w-12 h-12 rounded-full bg-red-500 flex items-center justify-center shadow-[0_0_15px_rgba(239,68,68,0.5)] animate-pulse">
+                                 <Square size={20} className="text-white" fill="currentColor" />
+                             </button>
+                         ) : (
+                             <button onClick={startRecording} className="w-12 h-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center hover:bg-aura-accent hover:border-aura-accent hover:text-white transition-all">
+                                 <Mic size={20} />
+                             </button>
+                         )}
+                         
+                         <div className="flex-1">
+                             {isRecording ? (
+                                 <div className="flex items-center gap-2">
+                                      <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse"></div>
+                                      <span className="text-red-400 font-mono text-sm">{recordingTime}s / 20s</span>
+                                      <div className="flex-1 h-1 bg-gray-700 rounded-full ml-2">
+                                          <div className="h-full bg-red-500 rounded-full transition-all duration-1000" style={{ width: `${(recordingTime / 20) * 100}%` }}></div>
+                                      </div>
+                                 </div>
+                             ) : (
+                                 (tempAudioUrl || voiceAuraUrl) ? (
+                                     <div className="flex items-center gap-3 bg-black/20 p-2 rounded-lg border border-white/5">
+                                          <button 
+                                            onClick={() => {
+                                                if (audioPlayerRef.current) {
+                                                    audioPlayerRef.current.currentTime = 0;
+                                                    audioPlayerRef.current.play();
+                                                }
+                                            }}
+                                            className="p-2 bg-aura-accent/20 rounded-full text-aura-accent hover:bg-aura-accent hover:text-white transition-colors"
+                                          >
+                                              <Play size={14} fill="currentColor" />
+                                          </button>
+                                          <div className="flex-1 h-6 flex items-center gap-0.5 opacity-50">
+                                              {/* Fake waveform visualization */}
+                                              {[...Array(15)].map((_, i) => (
+                                                  <div key={i} className="w-1 bg-white rounded-full" style={{ height: `${Math.random() * 80 + 20}%` }}></div>
+                                              ))}
+                                          </div>
+                                          <button onClick={deleteVoiceAura} className="p-2 text-gray-500 hover:text-red-400 transition-colors">
+                                              <Trash2 size={14} />
+                                          </button>
+                                          <audio ref={audioPlayerRef} src={tempAudioUrl || voiceAuraUrl} className="hidden" />
+                                     </div>
+                                 ) : (
+                                     <span className="text-xs text-gray-500 italic">Aucun enregistrement</span>
+                                 )
+                             )}
+                         </div>
+                     </div>
                 </div>
             </section>
 

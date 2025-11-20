@@ -1,5 +1,7 @@
 {
   "name": "Aura - La Rencontre Réinventée",
   "description": "Une application de rencontre révolutionnaire basée sur la compatibilité psychologique (MBTI, style d'attachement) avant l'apparence physique.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }

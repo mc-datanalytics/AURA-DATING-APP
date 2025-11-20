@@ -1,3 +1,4 @@
+
 import { supabase } from './supabaseClient';
 import { UserProfile, ChatSession, Message, AttachmentStyle, NotificationSettings, DiscoverySettings } from '../types';
 import { calculateCompatibility } from './matchingService';
@@ -16,6 +17,8 @@ let profileViewStartTime = Date.now();
 // Avoids hitting Supabase every time we switch views
 let discoveryCache: { uid: string, timestamp: number, data: UserProfile[] } | null = null;
 const CACHE_TTL_MS = 60000; // 1 minute cache
+// Local Blocklist Cache (to update UI instantly)
+let blockedUserIds: string[] = [];
 
 export const resetProfileViewTimer = () => {
     profileViewStartTime = Date.now();
@@ -38,6 +41,7 @@ export const signOut = async () => {
     await supabase.auth.signOut();
     localStorage.removeItem(STORAGE_KEY_USER_ID);
     discoveryCache = null; // Clear cache on logout
+    blockedUserIds = [];
 }
 
 export const getCurrentUserId = (): string | null => localStorage.getItem(STORAGE_KEY_USER_ID);
@@ -63,14 +67,48 @@ export const uploadPhoto = async (file: File): Promise<string | null> => {
     }
 }
 
+export const uploadVoiceAura = async (blob: Blob): Promise<string | null> => {
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        const userId = user ? user.id : getCurrentUserId();
+        if (!userId) throw new Error("User not logged in");
+
+        const fileName = `${userId}/voice_aura_${Date.now()}.webm`;
+        
+        // We reuse 'avatars' bucket for simplicity in this demo, or a specific 'audio' bucket if available
+        const { error: uploadError } = await supabase.storage.from('avatars').upload(fileName, blob, {
+            contentType: 'audio/webm'
+        });
+        
+        if (uploadError) throw uploadError;
+
+        const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
+        return data.publicUrl;
+    } catch (error) {
+        console.error("Voice Aura Upload Error:", error);
+        return null;
+    }
+}
+
 // --- PROFILE ---
 export const getMyProfile = async (): Promise<UserProfile | null> => {
   const id = getCurrentUserId();
   if (!id) return null;
   const { data, error } = await supabase.from('profiles').select('*').eq('id', id).single();
   if (error || !data) return null;
+  
+  // Load blocks
+  await loadBlockedUsers(id);
+
   return mapDbProfileToApp(data);
 };
+
+const loadBlockedUsers = async (myId: string) => {
+    const { data } = await supabase.from('blocks').select('blocked_id').eq('blocker_id', myId);
+    if (data) {
+        blockedUserIds = data.map((b: any) => b.blocked_id);
+    }
+}
 
 export const createMyProfile = async (profileData: Partial<UserProfile>): Promise<UserProfile | null> => {
   const { data: { user } } = await supabase.auth.getUser();
@@ -90,7 +128,7 @@ export const createMyProfile = async (profileData: Partial<UserProfile>): Promis
         image_url: profileData.imageUrl,
         photos: profileData.photos,
         interests: profileData.interests,
-        // En prod, on sauverait l'aura ici
+        aura: initialAura // CRITIQUE: Sauvegarde l'aura initiale pour l'algo SQL
   };
 
   const { data, error } = await supabase.from('profiles').upsert([payload]).select().single();
@@ -111,10 +149,12 @@ export const updateMyProfile = async (profile: UserProfile): Promise<UserProfile
           interests: profile.interests,
           image_url: profile.imageUrl,
           photos: profile.photos,
+          voice_aura_url: profile.voiceAuraUrl, // Save Voice URL
           daily_aura_answer: profile.dailyAuraAnswer,
           is_boosted: profile.isBoosted,
           is_premium: profile.isPremium,
-          // aura: profile.aura
+          discovery_settings: profile.discoverySettings,
+          aura: profile.aura // CRITIQUE: Met à jour l'aura vivante dans la DB
     };
 
     const { data } = await supabase.from('profiles').update(payload).eq('id', profile.id).select().single();
@@ -134,7 +174,44 @@ export const upgradeToPremium = async (userId: string): Promise<boolean> => {
     return true;
 };
 
+// --- MODERATION & SECURITY ---
+
+export const reportUser = async (reporterId: string, reportedId: string, reason: string, details: string) => {
+    const { error } = await supabase.from('reports').insert([{
+        reporter_id: reporterId,
+        reported_id: reportedId,
+        reason,
+        details
+    }]);
+    if (error) console.error("Report error:", error);
+    return !error;
+};
+
+export const blockUser = async (blockerId: string, blockedId: string) => {
+    const { error } = await supabase.from('blocks').insert([{
+        blocker_id: blockerId,
+        blocked_id: blockedId
+    }]);
+    
+    if (!error) {
+        blockedUserIds.push(blockedId);
+        // Invalidate discovery cache to remove blocked user immediately
+        discoveryCache = null;
+    } else {
+        console.error("Block error:", error);
+    }
+    return !error;
+};
+
+
 // --- CORE: DISCOVERY & MATCHING ---
+
+// Helper: Fetch a single profile by ID (Defined before usage)
+const getProfileById = async (id: string): Promise<UserProfile | null> => {
+    const { data } = await supabase.from('profiles').select('*').eq('id', id).single();
+    return data ? mapDbProfileToApp(data) : null;
+}
+
 export const getDiscoveryProfiles = async (myProfile: UserProfile): Promise<UserProfile[]> => {
   if (!myProfile) return [];
   resetProfileViewTimer();
@@ -144,58 +221,118 @@ export const getDiscoveryProfiles = async (myProfile: UserProfile): Promise<User
       discoveryCache.uid === myProfile.id && 
       (Date.now() - discoveryCache.timestamp < CACHE_TTL_MS) &&
       discoveryCache.data.length > 0) {
-      console.log("Serving Discovery from Memory Cache");
-      return discoveryCache.data;
+      // Filter blocked users from cache
+      return discoveryCache.data.filter(p => !blockedUserIds.includes(p.id));
   }
 
-  const { data: swipedData } = await supabase.from('swipes').select('target_id').eq('swiper_id', myProfile.id);
-  const swipedIds = swipedData?.map((s: any) => s.target_id) || [];
+  let rawProfiles: any[] = [];
+  let usedRpc = false;
+
+  // 2. Try Server-Side Matching (RPC) for Scalability
+  try {
+      const { data, error } = await supabase.rpc('get_compatible_profiles', { query_user_id: myProfile.id });
+      
+      if (!error && data) {
+          console.log("✅ Using Optimized SQL Matching Engine (Karmic V2)");
+          rawProfiles = data;
+          usedRpc = true;
+      } else {
+          // RPC might fail if blocks table exists but function wasn't updated, handle gracefully
+          if (error) console.warn("RPC Error (Falling back to legacy):", error.message);
+          throw new Error("RPC Failed");
+      }
+  } catch (err) {
+      // 3. FALLBACK: Legacy Client-Side Matching
+      console.log("⚠️ Using Legacy Client-Side Matching");
+      
+      const { data: swipedData } = await supabase.from('swipes').select('target_id').eq('swiper_id', myProfile.id);
+      const swipedIds = swipedData?.map((s: any) => s.target_id) || [];
+      
+      // Add blocked IDs to exclusion
+      const excludedIds = [...swipedIds, ...blockedUserIds];
+
+      let query = supabase.from('profiles').select('*').neq('id', myProfile.id);
+
+      if (myProfile.discoverySettings) {
+          const { minAge, maxAge } = myProfile.discoverySettings;
+          query = query.gte('age', minAge).lte('age', maxAge);
+      }
+
+      if (excludedIds.length > 0 && excludedIds.length < 1000) {
+         query = query.not('id', 'in', `(${excludedIds.join(',')})`);
+      }
+        
+      const { data: candidates } = await query.limit(50);
+      if (candidates) {
+          rawProfiles = candidates.filter(c => !excludedIds.includes(c.id));
+      }
+  }
+
+  // 4. Map to App Format
+  const profiles = rawProfiles.map(mapDbProfileToApp);
   
-  let query = supabase.from('profiles').select('*').neq('id', myProfile.id);
-
-  if (myProfile.discoverySettings) {
-      const { minAge, maxAge } = myProfile.discoverySettings;
-      query = query.gte('age', minAge).lte('age', maxAge);
-  }
-
-  if (swipedIds.length > 0 && swipedIds.length < 1000) {
-     query = query.not('id', 'in', `(${swipedIds.join(',')})`);
-  }
-    
-  const { data: candidates } = await query.limit(20);
-  if (!candidates) return [];
-
-  const filtered = swipedIds.length >= 1000 ? candidates.filter(c => !swipedIds.includes(c.id)) : candidates;
-  const profiles = filtered.map(mapDbProfileToApp);
-  
-  // APPLICATION DU CUPID'S BRAIN
-  // On calcule la compatibilité avancée ici
+  // 5. APPLICATION DU CUPID'S BRAIN (Client-Side refinement)
   const processed = profiles.map(p => {
       const { score, label, details } = calculateCompatibility(myProfile, p);
       return { ...p, compatibilityScore: score, compatibilityLabel: label, compatibilityDetails: details };
-  }).sort((a, b) => (b.compatibilityScore || 0) - (a.compatibilityScore || 0));
+  });
 
-  // 2. Set Cache
-  discoveryCache = {
-      uid: myProfile.id,
-      timestamp: Date.now(),
-      data: processed
-  };
+  if (!usedRpc) {
+      processed.sort((a, b) => (b.compatibilityScore || 0) - (a.compatibilityScore || 0));
+  }
+
+  // 6. Set Cache
+  if (processed.length > 0) {
+      discoveryCache = {
+          uid: myProfile.id,
+          timestamp: Date.now(),
+          data: processed
+      };
+  }
 
   return processed;
+};
+
+export const restoreLastSwipe = async (myProfile: UserProfile): Promise<UserProfile | null> => {
+    const { data } = await supabase.from('swipes')
+        .select('id, target_id')
+        .eq('swiper_id', myProfile.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+    
+    if(data) {
+        // Delete the swipe
+        await supabase.from('swipes').delete().eq('id', data.id);
+        
+        // Invalidate discovery cache
+        discoveryCache = null;
+
+        // Fetch the profile details
+        const targetProfile = await getProfileById(data.target_id);
+        if (targetProfile) {
+            // Recalculate match score
+            const { score, label, details } = calculateCompatibility(myProfile, targetProfile);
+            return { 
+                ...targetProfile, 
+                compatibilityScore: score, 
+                compatibilityLabel: label, 
+                compatibilityDetails: details 
+            };
+        }
+    }
+    return null;
 };
 
 export const swipeProfile = async (myId: string, targetId: string, direction: 'left' | 'right' | 'super') => {
     
     // --- HOOK AURA ENGINE ---
-    // L'utilisateur agit, donc son aura évolue.
     const myProfile = await getMyProfile();
     const targetProfile = await getProfileById(targetId);
 
     if (myProfile && targetProfile) {
         const timeTaken = Date.now() - profileViewStartTime;
         const newAura = AuraEngine.updateAuraFromSwipe(myProfile.aura, direction, targetProfile, timeTaken);
-        // Mise à jour optimiste locale (et silencieuse DB)
         await updateMyProfile({ ...myProfile, aura: newAura });
     }
     resetProfileViewTimer();
@@ -225,16 +362,12 @@ export const swipeProfile = async (myId: string, targetId: string, direction: 'l
     return null;
 };
 
-const getProfileById = async (id: string): Promise<UserProfile | null> => {
-    const { data } = await supabase.from('profiles').select('*').eq('id', id).single();
-    return data ? mapDbProfileToApp(data) : null;
-}
-
 export const undoLastSwipe = async (myId: string): Promise<string | null> => {
+    // DEPRECATED: Use restoreLastSwipe instead for full profile recovery
+    // This function is kept only if legacy calls exist, but we are moving to the new one.
     const { data } = await supabase.from('swipes').select('id, target_id').eq('swiper_id', myId).order('created_at', { ascending: false }).limit(1).single();
     if(data) {
         await supabase.from('swipes').delete().eq('id', data.id);
-        // Invalidate cache to force refetch (simplest way to bring back user)
         discoveryCache = null;
         return data.target_id;
     }
@@ -247,13 +380,15 @@ export const getPendingLikes = async (myProfile: UserProfile): Promise<UserProfi
     if (!incoming || incoming.length === 0) return [];
     
     const swiperIds = incoming.map((s: any) => s.swiper_id);
+    
+    // Filter out blocked users and already swiped users
     const { data: mySwipes } = await supabase.from('swipes').select('target_id').eq('swiper_id', myProfile.id).in('target_id', swiperIds);
     const doneIds = mySwipes?.map((s: any) => s.target_id) || [];
-    const pending = swiperIds.filter((id: string) => !doneIds.includes(id));
+    const pendingIds = swiperIds.filter((id: string) => !doneIds.includes(id) && !blockedUserIds.includes(id));
 
-    if (pending.length === 0) return [];
+    if (pendingIds.length === 0) return [];
 
-    const { data: profiles } = await supabase.from('profiles').select('*').in('id', pending);
+    const { data: profiles } = await supabase.from('profiles').select('*').in('id', pendingIds);
     if (!profiles) return [];
 
     return profiles.map((p: any) => {
@@ -275,9 +410,12 @@ export const getMatches = async (myId: string): Promise<ChatSession[]> => {
         const userA = Array.isArray(m.user_a) ? m.user_a[0] : m.user_a;
         const userB = Array.isArray(m.user_b) ? m.user_b[0] : m.user_b;
         const otherUserDb = userA.id === myId ? userB : userA;
+        
+        // Skip blocked users
+        if (blockedUserIds.includes(otherUserDb.id)) continue;
+
         const otherUser = mapDbProfileToApp(otherUserDb);
         
-        // Recalcul du score dynamique à chaque chargement
         const myUserDb = userA.id === myId ? userA : userB;
         const myUser = mapDbProfileToApp(myUserDb);
         const { score } = calculateCompatibility(myUser, otherUser);
@@ -333,6 +471,7 @@ const mapDbProfileToApp = (dbProfile: any): UserProfile => {
         imageUrl: dbProfile.image_url,
         photos: dbProfile.photos || [dbProfile.image_url],
         interests: dbProfile.interests || [],
+        voiceAuraUrl: dbProfile.voice_aura_url, // Map the new field
         isPremium: dbProfile.is_premium,
         dailyAuraAnswer: dbProfile.daily_aura_answer,
         isBoosted: dbProfile.is_boosted,

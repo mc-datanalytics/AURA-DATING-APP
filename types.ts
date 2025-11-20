@@ -50,6 +50,7 @@ export interface UserProfile {
   imageUrl: string;
   photos?: string[]; 
   interests: string[];
+  voiceAuraUrl?: string; // URL to the audio bio
   
   // L'Aura Vivante
   aura: DynamicAura;

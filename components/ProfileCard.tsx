@@ -1,18 +1,21 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, DiscoveryMode } from '../types';
-import { Eye, Heart, X, Zap, Brain, Activity, ChevronUp, Lock, CheckCircle2, HelpCircle, Sparkles, Flame, Droplets, Mountain, Wind, Info, FileText, Leaf, Stars, Fingerprint } from 'lucide-react';
+import { Eye, Heart, X, Zap, Brain, Activity, ChevronUp, Lock, CheckCircle2, HelpCircle, Sparkles, Flame, Droplets, Mountain, Wind, Info, FileText, Leaf, Stars, Fingerprint, Shield, Play, Pause, Volume2, RotateCcw, MapPin, BadgeCheck } from 'lucide-react';
 import CompatibilityChart from './CompatibilityChart';
 import CompatibilityReportModal from './CompatibilityReportModal';
 import clsx from 'clsx';
 import { playSwipeRight, playSwipeLeft, playClick, playSuperLike } from '../services/audioService';
 import { getElementColor } from '../services/auraEngine';
+import ReportModal from './ReportModal';
 
 interface ProfileCardProps {
   profile: UserProfile;
   currentUser?: UserProfile; 
   mode: DiscoveryMode;
   onSwipe: (direction: 'left' | 'right' | 'super') => void;
+  onBlock?: (userId: string) => void;
+  onRewind?: () => void;
 }
 
 const STAT_DEFINITIONS: Record<string, { question: string, desc: string, icon: any }> = {
@@ -23,7 +26,7 @@ const STAT_DEFINITIONS: Record<string, { question: string, desc: string, icon: a
     'Magie': { question: "L'Étincelle", desc: "Ce petit truc inexplicable qui dépasse les algorithmes.", icon: Stars }
 };
 
-const ProfileCard: React.FC<ProfileCardProps> = ({ profile, currentUser, mode, onSwipe }) => {
+const ProfileCard: React.FC<ProfileCardProps> = ({ profile, currentUser, mode, onSwipe, onBlock, onRewind }) => {
   const [swipeStatus, setSwipeStatus] = useState<'idle' | 'left' | 'right' | 'super'>('idle');
   const [dragX, setDragX] = useState(0);
   const [dragY, setDragY] = useState(0); 
@@ -32,7 +35,12 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, currentUser, mode, o
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [showDetails, setShowDetails] = useState(false);
   const [showReport, setShowReport] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
   const [hoveredStat, setHoveredStat] = useState<string | null>(null);
+  
+  // Voice Aura State
+  const [isPlayingVoice, setIsPlayingVoice] = useState(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
   
   const cardRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -43,12 +51,53 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, currentUser, mode, o
 
   useEffect(() => {
     setSwipeStatus('idle'); setDragX(0); setDragY(0); setIsDragging(false); setIsAnimating(false);
-    setCurrentPhotoIndex(0); setShowDetails(false); setShowReport(false); setHoveredStat(null);
+    setCurrentPhotoIndex(0); setShowDetails(false); setShowReport(false); setHoveredStat(null); setShowReportModal(false);
+    setIsPlayingVoice(false);
     if (contentRef.current) contentRef.current.scrollTop = 0;
   }, [profile.id]);
 
+  // Handle Audio End
+  useEffect(() => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      
+      const handleEnded = () => setIsPlayingVoice(false);
+      audio.addEventListener('ended', handleEnded);
+      return () => audio.removeEventListener('ended', handleEnded);
+  }, []);
+
+  const toggleVoiceAura = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      const audio = audioRef.current;
+      if (!audio) return;
+
+      if (isPlayingVoice) {
+          audio.pause();
+          setIsPlayingVoice(false);
+      } else {
+          playClick();
+          audio.play();
+          setIsPlayingVoice(true);
+      }
+  };
+
+  // Handle Mouse Wheel (Scroll) to open/close details
+  const handleWheel = (e: React.WheelEvent) => {
+      if (showDetails) {
+          // If details are open and we are at the top and scroll up, close details
+          if (contentRef.current && contentRef.current.scrollTop === 0 && e.deltaY < -30) {
+              toggleDetails();
+          }
+      } else {
+          // If details are closed and we scroll down, open details
+          if (e.deltaY > 30) {
+              toggleDetails();
+          }
+      }
+  };
+
   const handlePointerDown = (e: React.PointerEvent) => {
-    if (showDetails || showReport || (e.target as HTMLElement).closest('button')) return;
+    if (showDetails || showReport || showReportModal || (e.target as HTMLElement).closest('button')) return;
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
     startPos.current = { x: e.clientX, y: e.clientY };
     setIsDragging(true); setIsAnimating(false);
@@ -57,8 +106,18 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, currentUser, mode, o
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!isDragging) return;
-    setDragX(e.clientX - startPos.current.x);
-    setDragY(e.clientY - startPos.current.y);
+    const dx = e.clientX - startPos.current.x;
+    const dy = e.clientY - startPos.current.y;
+    
+    if (Math.abs(dx) > Math.abs(dy)) {
+        // Horizontal Swipe
+        setDragX(dx);
+        setDragY(dy * 0.2); // Dampen Y
+    } else {
+        // Vertical Movement
+        setDragX(dx * 0.2); // Dampen X
+        setDragY(dy);
+    }
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
@@ -66,16 +125,29 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, currentUser, mode, o
     setIsDragging(false);
     try { (e.target as HTMLElement).releasePointerCapture(e.pointerId); } catch (err) {}
     const velocity = Math.abs(dragX) / (Date.now() - lastDragTime.current);
+    const velocityY = Math.abs(dragY) / (Date.now() - lastDragTime.current);
 
+    // Tap Detection
     if (Math.abs(dragX) < 5 && Math.abs(dragY) < 5) {
         handleTapLogic(e);
         setDragX(0); setDragY(0);
         return;
     }
-    if (dragX > 100 || (dragX > 50 && velocity > 0.5)) triggerSwipe('right');
-    else if (dragX < -100 || (dragX < -50 && velocity > 0.5)) triggerSwipe('left');
-    else if (dragY < -150) triggerSwipe('super'); // Drag up for super like
-    else resetCardPosition();
+
+    // Swipe Left/Right
+    if (Math.abs(dragX) > 100 || (Math.abs(dragX) > 50 && velocity > 0.5)) {
+         if (dragX > 0) triggerSwipe('right');
+         else triggerSwipe('left');
+         return;
+    }
+    
+    // Vertical Drag Logic
+    if (dragY < -100 || (dragY < -50 && velocityY > 0.5)) {
+        setShowDetails(true);
+        playClick(700);
+    } 
+
+    resetCardPosition();
   };
 
   const handleTapLogic = (e: React.PointerEvent) => {
@@ -103,6 +175,13 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, currentUser, mode, o
   const details = profile.compatibilityDetails || { emotional: 50, intellectual: 50, lifestyle: 50, karmic: 50 };
   const auraColor = getElementColor(profile.aura?.dominantElement || 'TERRE');
 
+  const isVerticalDragUp = dragY < 0 && Math.abs(dragY) > Math.abs(dragX);
+  const cardTransform = isVerticalDragUp 
+    ? `scale(${1 - Math.abs(dragY) * 0.0005})` 
+    : `translateX(${dragX}px) translateY(${dragY}px) rotate(${rotateDeg}deg)`;
+  const sheetTranslateY = showDetails ? '0%' : isVerticalDragUp ? `calc(100% + ${dragY}px)` : '100%';
+  const infoOpacity = isVerticalDragUp ? Math.max(0, 1 - (Math.abs(dragY) / 200)) : 1;
+
   // Simplified Chart Data for Grand Public
   const chartData = [
     { subject: 'Cœur', A: details.emotional, fullMark: 100 },
@@ -125,12 +204,47 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, currentUser, mode, o
   return (
     <>
     {showReport && currentUser && <CompatibilityReportModal me={currentUser} other={profile} onClose={() => setShowReport(false)} />}
+    
+    {showReportModal && (
+        <ReportModal 
+            userName={profile.name} 
+            onClose={() => setShowReportModal(false)}
+            onReport={(reason, details, block) => {
+                if (block && onBlock) {
+                    onBlock(profile.id);
+                }
+            }}
+        />
+    )}
+    
+    {/* Audio Element for Voice Aura */}
+    {profile.voiceAuraUrl && <audio ref={audioRef} src={profile.voiceAuraUrl} preload="none" />}
 
-    <div className="relative w-full max-w-sm h-[75vh] perspective-1000">
+    <div 
+        className="relative w-full max-w-sm perspective-1000" 
+        onWheel={handleWheel} // Native scroll support
+        style={{ height: '62vh' }} // Reduced height to create space for bottom nav
+    >
+      {/* REWIND BUTTON - Top Left Positioning (Static) */}
+      {onRewind && (
+           <div className="absolute top-4 left-4 z-50">
+                <button 
+                    onClick={(e) => { e.stopPropagation(); playClick(); onRewind(); }} 
+                    className="w-10 h-10 rounded-full bg-black/20 backdrop-blur-md border border-yellow-500/30 text-yellow-500 flex items-center justify-center shadow-[0_0_15px_rgba(234,179,8,0.15)] hover:bg-yellow-500/10 hover:scale-110 transition-all active:scale-95 group"
+                >
+                    <RotateCcw size={18} className="group-hover:-rotate-90 transition-transform duration-500" />
+                </button>
+           </div>
+      )}
+
       <div 
         ref={cardRef}
-        className={clsx("relative w-full h-full rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] bg-gray-900 select-none touch-none", isAnimating && "transition-transform duration-300 cubic-bezier(0.25, 0.8, 0.25, 1)")}
-        style={{ transform: `translateX(${dragX}px) translateY(${dragY}px) rotate(${rotateDeg}deg)` }}
+        className={clsx("relative w-full h-full rounded-[2rem] overflow-hidden bg-carbon select-none touch-none shadow-[0_25px_50px_-12px_rgba(0,0,0,0.8)]", isAnimating && "transition-transform duration-300 cubic-bezier(0.25, 0.8, 0.25, 1)")}
+        style={{ 
+            transform: cardTransform,
+            // Bioluminescent Inner Glow matching element - Reduced intensity for natural look
+            boxShadow: `inset 0 0 20px ${auraColor}20, 0 25px 50px -12px rgba(0,0,0,0.8)` 
+        }}
         onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp}
       >
         {/* Overlay Feedback */}
@@ -139,88 +253,123 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, currentUser, mode, o
         
         {/* Image Layer */}
         <div className="relative w-full h-full">
+            
+            {/* Distance Badge (Top Right) */}
+            {!isIncognito && (
+                <div className="absolute top-4 right-4 z-20 px-3 py-1.5 rounded-full bg-black/20 backdrop-blur-md border border-white/10 flex items-center gap-1.5 text-white/80 shadow-lg">
+                    <MapPin size={10} />
+                    <span className="text-[10px] font-bold tracking-wider uppercase">5 km</span>
+                </div>
+            )}
+
             {isIncognito ? (
-                 <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-gray-800 to-black relative">
-                     <div className="absolute inset-0 blur-[100px] opacity-40 animate-pulse-slow" style={{ backgroundColor: auraColor }}></div>
-                     <div className="relative z-10 text-white/10"><Brain size={100} /></div>
-                     <div className="absolute top-6 right-6 bg-white/10 px-3 py-1 rounded-full flex items-center gap-2 z-20 border border-white/10"><Lock size={12} className="text-aura-accent" /><span className="text-[10px] font-bold uppercase text-gray-200">Incognito</span></div>
+                 // FLUID SHADER SIMULATION (CSS)
+                 <div className="w-full h-full flex flex-col items-center justify-center relative overflow-hidden bg-black">
+                     <div className="absolute inset-0 animate-fluid opacity-80" style={{ 
+                         background: `linear-gradient(45deg, ${auraColor}, #000, ${auraColor})`,
+                         backgroundSize: '200% 200%'
+                     }}></div>
+                     <div className="absolute inset-0 backdrop-blur-3xl"></div>
+                     
+                     <div className="relative z-10 text-white/80 mix-blend-overlay animate-breathing"><Brain size={80} strokeWidth={1} /></div>
+                     
+                     <div className="absolute top-6 right-6 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-2 z-20 border border-white/10 shadow-lg">
+                         <Lock size={12} className="text-white" />
+                         <span className="text-[10px] font-bold uppercase text-white tracking-widest">Incognito</span>
+                     </div>
                  </div>
             ) : (
                 <img src={photos[currentPhotoIndex]} className="w-full h-full object-cover pointer-events-none" />
             )}
 
-            {/* Subtle Aura Border */}
-            <div className="absolute inset-0 border-[3px] opacity-30 pointer-events-none rounded-3xl" style={{ borderColor: auraColor }}></div>
+            {/* Elemental Border (Subtle Inner Line) */}
+            <div className="absolute inset-0 border-[1px] opacity-40 pointer-events-none rounded-[2rem]" style={{ borderColor: auraColor }}></div>
 
-            {/* Photo Indicators */}
+            {/* Photo Indicators (Minimalist Dots) */}
             {!isIncognito && photos.length > 1 && (
-                <div className="absolute top-2 left-0 right-0 flex gap-1.5 px-2 z-20">
+                <div className="absolute top-4 left-0 right-0 flex justify-center gap-2 z-20">
                     {photos.map((_, idx) => (
-                        <div key={idx} className="flex-1 h-1 bg-black/20 rounded-full overflow-hidden backdrop-blur-md">
-                            <div className={clsx("h-full bg-white transition-all duration-300", idx === currentPhotoIndex ? "w-full" : idx < currentPhotoIndex ? "w-full" : "w-0")} />
-                        </div>
+                        <div key={idx} className={clsx("h-1.5 rounded-full transition-all duration-300 backdrop-blur-sm shadow-sm", idx === currentPhotoIndex ? "w-6 bg-white" : "w-1.5 bg-white/40")} />
                     ))}
                 </div>
             )}
 
-            {/* Info Overlay (Minimised) */}
-            <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black via-black/60 to-transparent z-20 flex flex-col justify-end px-5 pb-24">
+            {/* Info Overlay (Neo-Glass Gradient Tinted by Aura) */}
+            <div 
+                className="absolute bottom-0 left-0 right-0 h-3/5 z-20 flex flex-col justify-end px-6 pb-24 transition-opacity duration-300"
+                style={{ 
+                    opacity: infoOpacity,
+                    // Very Subtle Tinted Gradient to keep photo natural (20 hex = ~12% opacity)
+                    background: `linear-gradient(to top, #050505 10%, ${auraColor}20 50%, transparent 100%)`
+                }}
+            >
                  <div className="pointer-events-auto cursor-pointer" onClick={toggleDetails}>
-                      <div className="flex items-center gap-2 mb-2">
-                          <div className="px-2 py-0.5 rounded-md bg-white/10 backdrop-blur-md border border-white/10 text-[10px] font-bold uppercase flex items-center gap-1 text-white shadow-lg">
-                               <Zap size={10} fill="currentColor" className="text-yellow-400" /> {score}% Compatible
+                      {/* Top Badges */}
+                      <div className="flex items-center gap-2 mb-3">
+                          <div className="px-3 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-[10px] font-bold uppercase flex items-center gap-1.5 text-white shadow-glass">
+                               <Zap size={12} fill="currentColor" className="text-yellow-400" /> {score}%
                           </div>
-                          <div className="px-2 py-0.5 rounded-md bg-white/10 backdrop-blur-md border border-white/10 text-[10px] font-bold uppercase flex items-center gap-1 text-white/80">
+                          <div className="px-3 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-[10px] font-bold uppercase flex items-center gap-1.5 text-white/90 shadow-glass">
                                <span style={{ color: auraColor }}>{getElementIcon(profile.aura?.dominantElement || 'TERRE')}</span> {profile.aura?.dominantElement}
                           </div>
+                          
+                          {/* VOICE AURA BUTTON */}
+                          {profile.voiceAuraUrl && (
+                              <button 
+                                onClick={toggleVoiceAura}
+                                className={clsx("ml-auto px-3 py-1 rounded-full backdrop-blur-md border flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all active:scale-95 shadow-glass", isPlayingVoice ? "bg-white/20 text-white border-white/40" : "bg-black/40 text-white border-white/10 hover:bg-white/10")}
+                              >
+                                  {isPlayingVoice ? <span className="flex items-center gap-0.5"><span className="w-0.5 h-2 bg-white animate-[pulse_0.5s_ease-in-out_infinite]"/> <span className="w-0.5 h-3 bg-white animate-[pulse_0.7s_ease-in-out_infinite]"/> <span className="w-0.5 h-2 bg-white animate-[pulse_0.6s_ease-in-out_infinite]"/></span> : <Volume2 size={12} />}
+                              </button>
+                          )}
                       </div>
-                      <div className="flex items-end gap-3 mb-1">
-                          <h2 className="text-4xl font-serif font-bold text-white drop-shadow-md">{profile.name}</h2>
-                          <span className="text-2xl font-light text-gray-300">{profile.age}</span>
+
+                      {/* Name & Age & Verified - Clash Display */}
+                      <div className="flex items-end gap-2 mb-1">
+                          <h2 className="text-4xl font-display font-bold text-white drop-shadow-lg tracking-tight">{profile.name}</h2>
+                          {/* Updated Verified Badge: Clean & Sleek */}
+                          <BadgeCheck size={24} className="text-blue-500 mb-2 drop-shadow-lg" fill="currentColor" stroke="white" strokeWidth={1.5} />
+                          <span className="text-2xl font-display font-light text-gray-300 mb-1.5 ml-1">{profile.age}</span>
                       </div>
-                      <p className="text-xs text-gray-200 line-clamp-2 opacity-90 italic">"{profile.bio}"</p>
-                      <div className="flex items-center gap-1 mt-2 opacity-60 text-xs uppercase tracking-widest font-bold text-aura-accent">
-                           <Info size={10} /> En savoir plus
+
+                      <p className="text-sm text-gray-200 line-clamp-2 opacity-90 font-body font-medium leading-relaxed">"{profile.bio}"</p>
+                      <div className="flex items-center justify-center gap-1 mt-4 opacity-50 text-[10px] uppercase tracking-[0.2em] font-bold text-white">
+                           <ChevronUp size={12} className="animate-bounce" /> Détails
                       </div>
                  </div>
             </div>
         </div>
 
-        {/* DETAILS SHEET (Expanded) */}
-        <div className={clsx("absolute inset-0 z-40 bg-black/60 backdrop-blur-xl transition-all duration-500 flex flex-col", showDetails ? "translate-y-0 opacity-100" : "translate-y-full opacity-0 pointer-events-none")}>
+        {/* DETAILS SHEET (Expanded) - Obsidian Background */}
+        <div 
+            ref={contentRef}
+            className={clsx("absolute inset-0 z-40 bg-obsidian/90 backdrop-blur-xl flex flex-col transition-transform duration-300 cubic-bezier(0.25, 0.8, 0.25, 1)")}
+            style={{ transform: `translateY(${sheetTranslateY})` }}
+            onWheel={handleWheel} 
+        >
              <div className="p-6 pt-16 overflow-y-auto custom-scrollbar h-full">
-                 <button onClick={toggleDetails} className="absolute top-4 right-4 p-2 bg-white/10 rounded-full text-white"><ChevronUp size={24} className="rotate-180" /></button>
+                 <button onClick={toggleDetails} className="absolute top-4 right-4 p-2 bg-white/5 rounded-full text-white hover:bg-white/10 transition-colors"><ChevronUp size={24} className="rotate-180" /></button>
                  
-                 <div className="text-center mb-6">
-                     {/* Avatar avec bordure d'élément */}
-                     <div className="w-24 h-24 rounded-full mx-auto mb-3 p-1 border-2 relative shadow-2xl" style={{ borderColor: `${auraColor}60` }}>
-                         <img src={profile.imageUrl} className="w-full h-full rounded-full object-cover" />
+                 <div className="text-center mb-8">
+                     {/* Avatar with Elemental Ring */}
+                     <div className="w-28 h-28 rounded-full mx-auto mb-4 p-1 relative shadow-[0_0_30px_rgba(0,0,0,0.5)]">
+                         <div className="absolute inset-0 rounded-full border-2 border-dashed opacity-50 animate-spin-slow" style={{ borderColor: auraColor }}></div>
+                         <img src={profile.imageUrl} className="w-full h-full rounded-full object-cover border-2 border-black" />
+                         
+                         {profile.voiceAuraUrl && (
+                             <button 
+                                onClick={toggleVoiceAura}
+                                className="absolute -bottom-2 -right-2 w-10 h-10 rounded-full bg-carbon border border-white/10 flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
+                             >
+                                 {isPlayingVoice ? <span className="flex items-center gap-0.5 h-3"><span className="w-1 h-full bg-white animate-pulse"/> <span className="w-1 h-2/3 bg-white animate-pulse delay-75"/></span> : <Play size={14} fill="white" className="text-white ml-1"/>}
+                             </button>
+                         )}
                      </div>
                      
-                     <h2 className="text-3xl font-serif font-bold text-white mb-1">{profile.name}, {profile.age}</h2>
+                     <h2 className="text-3xl font-display font-bold text-white mb-1">{profile.name}, {profile.age}</h2>
                      
-                     {/* Barre de Statut Unifiée (Clean Design) */}
-                     <div className="flex justify-center mt-3 mb-3">
-                         <div className="inline-flex items-center bg-white/5 rounded-full p-1 border border-white/10 backdrop-blur-md shadow-lg">
-                             {/* Compatibilité */}
-                             <div className="px-4 py-1.5 rounded-full bg-gradient-to-r from-aura-mid to-aura-accent flex items-center gap-2 shadow-md">
-                                 <Zap size={12} fill="currentColor" className="text-yellow-300" />
-                                 <span className="text-xs font-bold text-white tracking-wide">{score}%</span>
-                             </div>
-                             
-                             {/* Séparateur */}
-                             <div className="w-px h-3 bg-white/20 mx-2"></div>
-                             
-                             {/* Élément */}
-                             <div className="pr-4 pl-1 flex items-center gap-2">
-                                 <span style={{ color: auraColor }}>{getElementIcon(profile.aura?.dominantElement || 'TERRE')}</span>
-                                 <span className="text-xs font-bold text-gray-300 tracking-wide uppercase">{profile.aura?.dominantElement}</span>
-                             </div>
-                         </div>
-                     </div>
-
                      {/* Tags MBTI/Attachment */}
-                     <div className="flex justify-center gap-2 opacity-70">
+                     <div className="flex justify-center gap-2 opacity-70 mt-2">
                          <span className="px-3 py-1 rounded-lg bg-white/5 text-[10px] text-gray-300 border border-white/5 font-bold uppercase tracking-widest">{profile.mbti}</span>
                          <span className="px-3 py-1 rounded-lg bg-white/5 text-[10px] text-gray-300 border border-white/5 font-bold uppercase tracking-widest">{profile.attachment}</span>
                      </div>
@@ -228,30 +377,28 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, currentUser, mode, o
 
                  <div className="space-y-6 pb-20">
                      
-                     {/* Section Graphique & Explications */}
-                     <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                         <div className="flex justify-between items-center mb-2">
-                             <h3 className="text-xs font-bold text-gray-400 uppercase flex gap-2 items-center"><Fingerprint size={12}/> Empreinte de l'Aura</h3>
+                     {/* Section Graphique */}
+                     <div className="glass-panel rounded-3xl p-5">
+                         <div className="flex justify-between items-center mb-4">
+                             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex gap-2 items-center"><Fingerprint size={14}/> Empreinte</h3>
+                             <div className="px-2 py-0.5 rounded bg-white/5 text-[10px] font-bold text-white border border-white/5">{score}%</div>
                          </div>
                          
-                         {/* Le Graphique */}
-                         <div className="h-40 relative mb-4">
+                         <div className="h-48 relative mb-4">
                              <CompatibilityChart data={chartData} onHoverLabel={setHoveredStat} />
                          </div>
 
-                         {/* Boîte de description (Feed-back) */}
-                         <div className="p-3 bg-black/30 rounded-xl text-center min-h-[80px] flex flex-col justify-center border border-white/5 transition-all">
-                             <span className="text-xs font-bold text-aura-accent uppercase block mb-1 flex items-center justify-center gap-2">
-                                 {hoveredStat ? React.createElement(STAT_DEFINITIONS[hoveredStat].icon, { size: 12 }) : <Sparkles size={12}/>}
+                         <div className="p-4 bg-black/40 rounded-2xl text-center min-h-[80px] flex flex-col justify-center border border-white/5 transition-all">
+                             <span className="text-xs font-bold text-white uppercase block mb-1 flex items-center justify-center gap-2 tracking-wider">
+                                 {hoveredStat ? React.createElement(STAT_DEFINITIONS[hoveredStat].icon, { size: 14, className: "text-brand-mid" }) : <Sparkles size={14} className="text-brand-mid"/>}
                                  {hoveredStat ? STAT_DEFINITIONS[hoveredStat].question : "Analysez votre synergie"}
                              </span>
-                             <span className="text-[10px] text-gray-300 leading-tight">
-                                 {hoveredStat ? STAT_DEFINITIONS[hoveredStat].desc : "Touchez les dimensions ci-dessous pour comprendre vos points de connexion."}
+                             <span className="text-[10px] text-gray-400 leading-tight font-medium">
+                                 {hoveredStat ? STAT_DEFINITIONS[hoveredStat].desc : "Touchez les dimensions ci-dessous."}
                              </span>
                          </div>
 
-                         {/* Boutons Interactifs (Dimensions) */}
-                         <div className="flex justify-between gap-1 mt-3 overflow-x-auto pb-1">
+                         <div className="flex justify-between gap-2 mt-4 overflow-x-auto pb-2">
                              {Object.keys(STAT_DEFINITIONS).map((key) => {
                                  const Icon = STAT_DEFINITIONS[key].icon;
                                  const isActive = hoveredStat === key;
@@ -260,12 +407,12 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, currentUser, mode, o
                                         key={key}
                                         onClick={() => { playClick(); setHoveredStat(key); }}
                                         className={clsx(
-                                            "flex flex-col items-center justify-center p-2 rounded-lg min-w-[50px] transition-all",
-                                            isActive ? "bg-aura-accent text-white shadow-lg scale-105" : "bg-white/5 text-gray-400 hover:bg-white/10"
+                                            "flex flex-col items-center justify-center p-3 rounded-xl min-w-[55px] transition-all border",
+                                            isActive ? "bg-white/10 border-white/20 text-white shadow-glass scale-105" : "bg-transparent border-transparent text-gray-600 hover:text-gray-400"
                                         )}
                                      >
-                                         <Icon size={16} className={clsx("mb-1", isActive ? "text-white" : "text-gray-500")} />
-                                         <span className="text-[8px] font-bold uppercase">{key}</span>
+                                         <Icon size={18} className="mb-1.5" />
+                                         <span className="text-[8px] font-bold uppercase tracking-wider">{key.substring(0,3)}</span>
                                      </button>
                                  )
                              })}
@@ -273,23 +420,44 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, currentUser, mode, o
                      </div>
 
                      <div>
-                         <h3 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-2"><Leaf size={12}/> Passions Communes</h3>
-                         <div className="flex flex-wrap gap-2">{profile.interests.map(i => <span key={i} className="px-3 py-1 bg-white/5 rounded-full text-xs text-gray-300 border border-white/5 hover:border-aura-accent/50 transition-colors">{i}</span>)}</div>
+                         <h3 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-2 tracking-widest"><Leaf size={14}/> Passions</h3>
+                         <div className="flex flex-wrap gap-2">{profile.interests.map(i => <span key={i} className="px-4 py-1.5 bg-white/5 rounded-full text-xs text-white font-medium border border-white/5 hover:border-brand-mid hover:bg-brand-mid/10 transition-colors">{i}</span>)}</div>
                      </div>
 
-                     <button onClick={() => { playClick(); setShowReport(true); }} className="w-full py-3 bg-gradient-to-r from-aura-mid to-aura-accent rounded-xl text-xs font-bold text-white shadow-lg flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform">
-                         <FileText size={14} /> Voir le rapport détaillé par IA
+                     <button onClick={() => { playClick(); setShowReport(true); }} className="w-full py-4 bg-gradient-to-r from-brand-mid/20 to-brand-end/20 border border-brand-mid/30 rounded-2xl text-xs font-bold text-white shadow-lg flex items-center justify-center gap-2 hover:bg-brand-mid/30 transition-all uppercase tracking-widest">
+                         <FileText size={14} /> Rapport Cosmique complet
                      </button>
+
+                     <div className="flex justify-center pt-4">
+                         <button 
+                            onClick={() => setShowReportModal(true)}
+                            className="text-[10px] text-gray-600 hover:text-red-400 flex items-center gap-1.5 transition-colors font-bold uppercase tracking-wider"
+                         >
+                             <Shield size={12} /> Signaler
+                         </button>
+                     </div>
                  </div>
              </div>
         </div>
       </div>
       
-      {/* Action Buttons */}
-      <div className={clsx("absolute -bottom-6 left-0 right-0 flex justify-center gap-6 z-50 transition-all duration-300", showDetails ? "translate-y-20 opacity-0 pointer-events-none" : "translate-y-0 opacity-100")}>
-           <button onClick={() => triggerSwipe('left')} className="w-14 h-14 bg-gray-900 border border-gray-800 rounded-full text-red-500 flex items-center justify-center shadow-xl hover:scale-110 hover:bg-red-500 hover:text-white transition-all"><X size={24} /></button>
-           <button onClick={() => triggerSwipe('super')} className="w-10 h-10 bg-gray-900 border border-blue-900/50 rounded-full text-blue-400 flex items-center justify-center shadow-xl hover:scale-110 hover:bg-blue-500 hover:text-white -translate-y-2 transition-all"><Zap size={16} fill="currentColor" /></button>
-           <button onClick={() => triggerSwipe('right')} className="w-14 h-14 bg-gray-900 border border-gray-800 rounded-full text-aura-accent flex items-center justify-center shadow-xl hover:scale-110 hover:bg-aura-accent hover:text-white transition-all"><Heart size={24} fill="currentColor" /></button>
+      {/* Action Buttons - Floating Neo Style - Adjusted for Tinder-Standard Layout */}
+      <div className={clsx("absolute -bottom-4 left-0 right-0 z-50 transition-all duration-300", showDetails ? "translate-y-20 opacity-0 pointer-events-none" : "translate-y-0 opacity-100")}>
+           
+           {/* Main Trio - Perfectly Centered */}
+           <div className="flex justify-center items-center gap-6">
+               <button onClick={() => triggerSwipe('left')} className="w-16 h-16 bg-carbon border border-white/5 rounded-full text-red-500 flex items-center justify-center shadow-glass hover:scale-110 hover:border-red-500 transition-all group">
+                   <X size={32} className="group-hover:scale-110 transition-transform" />
+               </button>
+               
+               <button onClick={() => triggerSwipe('super')} className="w-12 h-12 bg-carbon border border-blue-500/30 rounded-full text-blue-400 flex items-center justify-center shadow-glass hover:scale-110 hover:border-blue-500 hover:shadow-[0_0_20px_rgba(59,130,246,0.4)] -translate-y-3 transition-all group">
+                   <Zap size={22} fill="currentColor" className="group-hover:scale-110 transition-transform" />
+               </button>
+               
+               <button onClick={() => triggerSwipe('right')} className="w-16 h-16 bg-carbon border border-white/5 rounded-full text-brand-end flex items-center justify-center shadow-glass hover:scale-110 hover:border-brand-end transition-all group">
+                   <Heart size={32} fill="currentColor" className="group-hover:scale-110 transition-transform" />
+               </button>
+           </div>
       </div>
     </div>
     </>

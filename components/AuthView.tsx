@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
-import { Eye, EyeOff, ArrowRight, Sparkles, BrainCircuit } from 'lucide-react';
+import { Eye, EyeOff, ArrowRight, Sparkles } from 'lucide-react';
 import { signIn, signUp } from '../services/dataService';
 import { playClick, playMatchSuccess } from '../services/audioService';
+import AuraLogo from './AuraLogo';
 
 const AuthView: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -47,9 +48,9 @@ const AuthView: React.FC = () => {
       
       {/* Branding */}
       <div className="mb-8 text-center">
-        <div className="relative inline-block">
-            <div className="absolute inset-0 bg-aura-accent blur-xl opacity-30 rounded-full animate-pulse-slow"></div>
-            <BrainCircuit className="w-16 h-16 text-aura-accent relative z-10 mb-4 mx-auto" />
+        <div className="relative inline-block mb-2">
+            <div className="absolute inset-0 bg-aura-accent blur-3xl opacity-20 rounded-full animate-pulse-slow"></div>
+            <AuraLogo size={100} className="relative z-10 mx-auto" />
         </div>
         <h1 className="text-4xl font-serif font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-200 to-pink-200 mb-2">
             Aura

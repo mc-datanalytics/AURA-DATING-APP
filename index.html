@@ -2,78 +2,93 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Viewport optimisé pour mobile : pas de zoom, fit cover pour le notch -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    
+    <!-- Mode PWA / Web App -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#050505" />
+    
     <title>Aura</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Playfair+Display:ital,wght@0,600;1,600&display=swap" rel="stylesheet">
+    
+    <!-- Import Fonts: Clash Display & Satoshi -->
+    <link href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
+    
     <script>
       tailwind.config = {
         theme: {
           extend: {
             fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-              serif: ['Playfair Display', 'serif'],
+              display: ['Clash Display', 'sans-serif'],
+              body: ['Satoshi', 'sans-serif'],
+              sans: ['Satoshi', 'sans-serif'], // Fallback
             },
             colors: {
-              aura: {
-                dark: '#0f0c29',
-                mid: '#302b63',
-                light: '#24243e',
-                accent: '#b06ab3',
-                glow: '#4568dc',
+              obsidian: '#050505',
+              carbon: '#121212',
+              brand: {
+                start: '#7F00FF',
+                mid: '#4B00E0',
+                end: '#FF4B6E',
+              },
+              element: {
+                fire: '#FF4D4D', 
+                water: '#2E3192', 
+                earth: '#11998E', 
+                air: '#CFDEF3', 
               }
+            },
+            backgroundImage: {
+              'gradient-brand': 'linear-gradient(135deg, #7F00FF 0%, #4B00E0 50%, #FF4B6E 100%)',
+              'gradient-fire': 'linear-gradient(135deg, #FF4D4D 0%, #F9CB28 100%)',
+              'gradient-water': 'linear-gradient(135deg, #2E3192 0%, #1BFFFF 100%)',
+              'gradient-earth': 'linear-gradient(135deg, #11998E 0%, #38EF7D 100%)',
+              'gradient-air': 'linear-gradient(135deg, #E0EAFC 0%, #CFDEF3 100%)',
+            },
+            boxShadow: {
+              'glow-brand': '0 0 20px rgba(127, 0, 255, 0.4)',
+              'glow-fire': '0 0 30px rgba(255, 77, 77, 0.4)',
+              'glow-water': '0 0 30px rgba(27, 255, 255, 0.3)',
+              'glow-earth': '0 0 30px rgba(56, 239, 125, 0.3)',
+              'glow-air': '0 0 30px rgba(207, 222, 243, 0.4)',
+              'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.5)',
             },
             animation: {
               'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
               'float': 'float 6s ease-in-out infinite',
-              'swipe-left': 'swipe-out-left 0.5s ease-out forwards',
-              'swipe-right': 'swipe-out-right 0.5s ease-out forwards',
-              'swipe-out-up': 'swipe-out-up 0.5s ease-out forwards',
-              'spin-slow': 'spin 3s linear infinite',
-              'fade-in': 'fadeIn 0.5s ease-out',
+              'breathing': 'breathing 5s ease-in-out infinite',
+              'fluid': 'fluid 10s ease infinite',
+              'spin-slow': 'spin 8s linear infinite',
+              'fade-in': 'fadeIn 0.6s ease-out',
               'scale-in': 'scaleIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
               'slide-up': 'slideUp 0.5s ease-out',
-              'slide-down': 'slideDown 0.5s ease-out',
-              'flip-in': 'flipIn 0.6s ease-out',
             },
             keyframes: {
               float: {
                 '0%, 100%': { transform: 'translateY(0)' },
                 '50%': { transform: 'translateY(-10px)' },
               },
-              'swipe-out-left': {
-                '0%': { transform: 'translateX(0) rotate(0)', opacity: '1' },
-                '100%': { transform: 'translateX(-150%) rotate(-20deg)', opacity: '0' },
+              breathing: {
+                '0%, 100%': { opacity: '0.3', transform: 'scale(1)' },
+                '50%': { opacity: '0.6', transform: 'scale(1.05)' },
               },
-              'swipe-out-right': {
-                '0%': { transform: 'translateX(0) rotate(0)', opacity: '1' },
-                '100%': { transform: 'translateX(150%) rotate(20deg)', opacity: '0' },
-              },
-              'swipe-out-up': {
-                '0%': { transform: 'translateY(0) scale(1)', opacity: '1' },
-                '100%': { transform: 'translateY(-150%) scale(0.5)', opacity: '0' },
+              fluid: {
+                '0%, 100%': { backgroundPosition: '0% 50%' },
+                '50%': { backgroundPosition: '100% 50%' },
               },
               fadeIn: {
                 '0%': { opacity: '0' },
                 '100%': { opacity: '1' },
               },
               scaleIn: {
-                '0%': { opacity: '0', transform: 'scale(0.8)' },
+                '0%': { opacity: '0', transform: 'scale(0.9)' },
                 '100%': { opacity: '1', transform: 'scale(1)' },
               },
               slideUp: {
                 '0%': { transform: 'translateY(20px)', opacity: '0' },
                 '100%': { transform: 'translateY(0)', opacity: '1' },
-              },
-              slideDown: {
-                '0%': { transform: 'translateY(-20px)', opacity: '0' },
-                '100%': { transform: 'translateY(0)', opacity: '1' },
-              },
-              flipIn: {
-                '0%': { transform: 'rotateY(90deg)', opacity: '0' },
-                '100%': { transform: 'rotateY(0)', opacity: '1' },
               }
             }
           }
@@ -81,56 +96,62 @@
       }
     </script>
     <style>
-      body {
-        background: linear-gradient(to bottom, #0f0c29, #302b63, #24243e);
-        color: white;
-        min-height: 100vh;
-        display: flex;
-        justify-content: center;
-      }
-      #root {
+      html, body {
+        height: 100%;
         width: 100%;
+        overflow: hidden;
+        position: fixed;
+        background-color: #050505;
+      }
+
+      body {
+        font-family: 'Satoshi', sans-serif;
+        color: white;
         display: flex;
         justify-content: center;
+        -webkit-tap-highlight-color: transparent;
+        user-select: none;
+        touch-action: manipulation;
+        overscroll-behavior-y: none;
       }
-      /* Glassmorphism utilities */
-      .glass {
-        background: rgba(255, 255, 255, 0.05);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-      }
-      .glass-card {
-        background: rgba(20, 20, 30, 0.6);
+
+      /* Neo-Glassmorphism Utilities */
+      .glass-panel {
+        background: rgba(18, 18, 18, 0.6);
         backdrop-filter: blur(16px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
       }
+
+      .glass-button {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        transition: all 0.3s ease;
+      }
+      
+      .glass-button:active {
+        background: rgba(255, 255, 255, 0.1);
+        transform: scale(0.98);
+      }
+
       /* Custom Scrollbar */
       .custom-scrollbar::-webkit-scrollbar {
-        width: 4px;
+        width: 0px;
+        background: transparent;
       }
-      .custom-scrollbar::-webkit-scrollbar-track {
-        background: rgba(0,0,0,0.1);
+
+      input, textarea {
+        user-select: text;
+        -webkit-user-select: text;
       }
-      .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: rgba(255,255,255,0.2);
-        border-radius: 10px;
-      }
-      .mask-image-gradient {
-          mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
-          -webkit-mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
-      }
-      /* Shimmer Effect for Skeletons */
-      .shimmer {
-        background: #2d3748;
-        background-image: linear-gradient(to right, #2d3748 0%, #4a5568 20%, #2d3748 40%, #2d3748 100%);
-        background-repeat: no-repeat;
-        background-size: 800px 100%; 
-        animation: shimmer 1.5s infinite linear forwards; 
-      }
-      @keyframes shimmer {
-        0% { background-position: -800px 0; }
-        100% { background-position: 800px 0; }
+
+      #root {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
       }
     </style>
   <script type="importmap">
