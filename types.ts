@@ -46,6 +46,11 @@ export interface DynamicAura {
   dominantElement?: 'FEU' | 'EAU' | 'TERRE' | 'AIR';
 }
 
+export interface UserLocation {
+  latitude: number;
+  longitude: number;
+}
+
 export interface UserProfile {
   id: string;
   name: string;
@@ -59,6 +64,10 @@ export interface UserProfile {
   interests: string[];
   voiceAuraUrl?: string; // URL to the audio bio
   
+  // Localisation
+  location?: UserLocation;
+  distanceKm?: number; // Distance calculée par rapport à l'utilisateur courant
+
   // L'Aura Vivante
   aura: DynamicAura;
 
@@ -70,6 +79,9 @@ export interface UserProfile {
   hasSuperLikedUser?: boolean;
   dailyAuraAnswer?: string; 
   isBoosted?: boolean; 
+  
+  // Verification & Trust (Anti-Bot)
+  isVerified?: boolean; 
   
   // Monetization
   isPremium?: boolean; // Legacy / Helper
@@ -83,6 +95,8 @@ export interface Message {
   id: string;
   senderId: string;
   text: string;
+  type?: 'text' | 'image' | 'audio';
+  mediaUrl?: string;
   timestamp: Date;
 }
 

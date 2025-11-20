@@ -4,6 +4,7 @@ import { UserProfile } from '../types';
 import { ArrowLeft, Save, Plus, X, Star, Image as ImageIcon, Loader2, Info, Mic, Square, Play, Trash2 } from 'lucide-react';
 import { playClick } from '../services/audioService';
 import { uploadPhoto, uploadVoiceAura } from '../services/dataService';
+import { useToast } from './Toast';
 
 interface EditProfileViewProps {
   user: UserProfile;
@@ -20,6 +21,7 @@ const INTERESTS_LIST = [
 ];
 
 const EditProfileView: React.FC<EditProfileViewProps> = ({ user, onSave, onCancel }) => {
+  const { showToast } = useToast();
   
   // Initialize photos from user.photos or fallback to imageUrl
   const [photos, setPhotos] = useState<string[]>(
@@ -61,11 +63,13 @@ const EditProfileView: React.FC<EditProfileViewProps> = ({ user, onSave, onCance
              if (publicUrl) {
                  setPhotos([...photos, publicUrl]);
                  playClick(800);
+                 showToast("Photo ajoutée", "success");
              } else {
-                 alert("Erreur d'upload.");
+                 showToast("Erreur d'upload.", "error");
              }
         } catch (error) {
             console.error(error);
+            showToast("Erreur inattendue.", "error");
         } finally {
             setIsUploading(false);
         }
@@ -88,6 +92,7 @@ const EditProfileView: React.FC<EditProfileViewProps> = ({ user, onSave, onCance
     newPhotos.splice(index, 1);
     newPhotos.unshift(targetPhoto);
     setPhotos(newPhotos);
+    showToast("Photo principale mise à jour", "info");
   };
 
   const toggleInterest = (interest: string) => {
@@ -144,7 +149,7 @@ const EditProfileView: React.FC<EditProfileViewProps> = ({ user, onSave, onCance
 
       } catch (err) {
           console.error("Mic Error:", err);
-          alert("Impossible d'accéder au micro. Vérifiez vos permissions.");
+          showToast("Impossible d'accéder au micro. Vérifiez vos permissions.", "error");
       }
   };
 
@@ -169,7 +174,7 @@ const EditProfileView: React.FC<EditProfileViewProps> = ({ user, onSave, onCance
 
   const handleSave = async () => {
       if (photos.length === 0) {
-          alert("Il vous faut au moins une photo.");
+          showToast("Il vous faut au moins une photo.", "error");
           return;
       }
       playClick(900);
@@ -184,6 +189,7 @@ const EditProfileView: React.FC<EditProfileViewProps> = ({ user, onSave, onCance
               if (url) finalVoiceUrl = url;
           } catch (err) {
               console.error("Voice Upload Failed", err);
+              showToast("Échec upload vocal", "error");
           }
       }
       
@@ -201,18 +207,18 @@ const EditProfileView: React.FC<EditProfileViewProps> = ({ user, onSave, onCance
   };
 
   return (
-    <div className="flex flex-col h-full bg-aura-dark relative">
+    <div className="flex flex-col h-full bg-white dark:bg-obsidian relative transition-colors duration-300">
         
         {/* Header */}
-        <div className="flex items-center justify-between p-4 bg-aura-dark/90 backdrop-blur border-b border-white/10 sticky top-0 z-20">
-            <button onClick={onCancel} className="text-gray-300 hover:text-white p-2">
+        <div className="flex items-center justify-between p-4 bg-white/90 dark:bg-obsidian/90 backdrop-blur border-b border-gray-200 dark:border-white/10 sticky top-0 z-20 pt-[max(env(safe-area-inset-top),1rem)] transition-colors">
+            <button onClick={onCancel} className="text-gray-500 hover:text-black dark:text-gray-300 dark:hover:text-white p-2 transition-colors">
                 <ArrowLeft size={24} />
             </button>
-            <h2 className="text-lg font-serif font-bold text-white">Modifier le profil</h2>
+            <h2 className="text-lg font-serif font-bold text-gray-900 dark:text-white">Modifier le profil</h2>
             <button 
                 onClick={handleSave} 
                 disabled={isUploading}
-                className="text-aura-accent font-bold hover:text-white transition-colors p-2 flex items-center gap-1 disabled:opacity-50"
+                className="text-brand-mid font-bold hover:opacity-80 transition-colors p-2 flex items-center gap-1 disabled:opacity-50"
             >
                 {isUploading ? <Loader2 className="animate-spin" size={18}/> : <><Save size={18} /> Sauver</>}
             </button>
@@ -223,16 +229,16 @@ const EditProfileView: React.FC<EditProfileViewProps> = ({ user, onSave, onCance
             
             {/* Photos Section */}
             <section>
-                <h3 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-2">
+                <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-3 flex items-center gap-2">
                     <ImageIcon size={14}/> Mes Photos ({photos.length}/6)
                 </h3>
 
                 {/* Guidelines Block */}
-                <div className="bg-white/5 border border-white/10 rounded-xl p-3 mb-4">
+                <div className="bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl p-3 mb-4">
                   <div className="flex items-start gap-3">
-                      <Info size={16} className="text-aura-accent shrink-0 mt-0.5"/>
-                      <div className="text-xs text-gray-400">
-                          <p className="font-bold text-gray-300 mb-1">Recommandations :</p>
+                      <Info size={16} className="text-brand-mid shrink-0 mt-0.5"/>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                          <p className="font-bold text-gray-900 dark:text-gray-200 mb-1">Recommandations :</p>
                           <ul className="space-y-1 list-disc list-inside opacity-80">
                               <li>Formats <strong>JPG/PNG</strong>. La qualité compte !</li>
                               <li>La <strong>1ère photo</strong> doit montrer votre visage clairement.</li>
@@ -250,12 +256,12 @@ const EditProfileView: React.FC<EditProfileViewProps> = ({ user, onSave, onCance
                         <div 
                             key={index} 
                             onClick={() => setMainPhoto(index)}
-                            className={`aspect-[3/4] relative rounded-xl overflow-hidden bg-gray-800 border-2 cursor-pointer transition-all group ${index === 0 ? 'border-aura-accent shadow-[0_0_10px_rgba(176,106,179,0.3)]' : 'border-transparent hover:border-white/30'}`}
+                            className={`aspect-[3/4] relative rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800 border-2 cursor-pointer transition-all group ${index === 0 ? 'border-brand-mid shadow-glow-brand' : 'border-transparent hover:border-gray-300 dark:hover:border-white/30'}`}
                         >
                             <img src={photo} className="w-full h-full object-cover" alt="user" />
                             
                             {index === 0 && (
-                                <div className="absolute top-2 left-2 bg-aura-accent p-1 rounded-full shadow-lg">
+                                <div className="absolute top-2 left-2 bg-brand-mid p-1 rounded-full shadow-lg">
                                     <Star size={10} fill="white" className="text-white" />
                                 </div>
                             )}
@@ -271,9 +277,9 @@ const EditProfileView: React.FC<EditProfileViewProps> = ({ user, onSave, onCance
 
                     {/* Add Button */}
                     {photos.length < 6 && (
-                        <label className="aspect-[3/4] rounded-xl bg-white/5 border border-dashed border-white/20 flex flex-col items-center justify-center cursor-pointer hover:bg-white/10 transition-all text-gray-400 hover:text-white hover:border-aura-accent relative">
+                        <label className="aspect-[3/4] rounded-xl bg-gray-50 dark:bg-white/5 border border-dashed border-gray-300 dark:border-white/20 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 dark:hover:bg-white/10 transition-all text-gray-400 dark:text-gray-500 hover:text-brand-mid dark:hover:text-white hover:border-brand-mid dark:hover:border-brand-mid relative">
                              {isUploading ? (
-                                 <Loader2 className="animate-spin text-aura-accent" size={24} />
+                                 <Loader2 className="animate-spin text-brand-mid" size={24} />
                              ) : (
                                  <>
                                     <Plus size={24} />
@@ -294,11 +300,11 @@ const EditProfileView: React.FC<EditProfileViewProps> = ({ user, onSave, onCance
             
             {/* VOICE AURA SECTION */}
             <section>
-                 <h3 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-2">
+                 <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-3 flex items-center gap-2">
                     <Mic size={14}/> Aura Vocale
                 </h3>
-                <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                     <p className="text-xs text-gray-300 mb-4">Enregistrez une courte présentation vocale (max 20s). Parlez de ce qui vous fait vibrer.</p>
+                <div className="bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl p-4">
+                     <p className="text-xs text-gray-600 dark:text-gray-300 mb-4">Enregistrez une courte présentation vocale (max 20s). Parlez de ce qui vous fait vibrer.</p>
                      
                      <div className="flex items-center gap-4">
                          {isRecording ? (
@@ -306,7 +312,7 @@ const EditProfileView: React.FC<EditProfileViewProps> = ({ user, onSave, onCance
                                  <Square size={20} className="text-white" fill="currentColor" />
                              </button>
                          ) : (
-                             <button onClick={startRecording} className="w-12 h-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center hover:bg-aura-accent hover:border-aura-accent hover:text-white transition-all">
+                             <button onClick={startRecording} className="w-12 h-12 rounded-full bg-white dark:bg-white/10 border border-gray-200 dark:border-white/20 flex items-center justify-center hover:bg-brand-mid hover:border-brand-mid hover:text-white transition-all text-gray-700 dark:text-white">
                                  <Mic size={20} />
                              </button>
                          )}
@@ -315,14 +321,14 @@ const EditProfileView: React.FC<EditProfileViewProps> = ({ user, onSave, onCance
                              {isRecording ? (
                                  <div className="flex items-center gap-2">
                                       <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse"></div>
-                                      <span className="text-red-400 font-mono text-sm">{recordingTime}s / 20s</span>
-                                      <div className="flex-1 h-1 bg-gray-700 rounded-full ml-2">
+                                      <span className="text-red-500 font-mono text-sm">{recordingTime}s / 20s</span>
+                                      <div className="flex-1 h-1 bg-gray-200 dark:bg-gray-700 rounded-full ml-2">
                                           <div className="h-full bg-red-500 rounded-full transition-all duration-1000" style={{ width: `${(recordingTime / 20) * 100}%` }}></div>
                                       </div>
                                  </div>
                              ) : (
                                  (tempAudioUrl || voiceAuraUrl) ? (
-                                     <div className="flex items-center gap-3 bg-black/20 p-2 rounded-lg border border-white/5">
+                                     <div className="flex items-center gap-3 bg-white dark:bg-black/20 p-2 rounded-lg border border-gray-200 dark:border-white/5">
                                           <button 
                                             onClick={() => {
                                                 if (audioPlayerRef.current) {
@@ -330,23 +336,23 @@ const EditProfileView: React.FC<EditProfileViewProps> = ({ user, onSave, onCance
                                                     audioPlayerRef.current.play();
                                                 }
                                             }}
-                                            className="p-2 bg-aura-accent/20 rounded-full text-aura-accent hover:bg-aura-accent hover:text-white transition-colors"
+                                            className="p-2 bg-brand-mid/10 dark:bg-brand-mid/20 rounded-full text-brand-mid hover:bg-brand-mid hover:text-white transition-colors"
                                           >
                                               <Play size={14} fill="currentColor" />
                                           </button>
                                           <div className="flex-1 h-6 flex items-center gap-0.5 opacity-50">
                                               {/* Fake waveform visualization */}
                                               {[...Array(15)].map((_, i) => (
-                                                  <div key={i} className="w-1 bg-white rounded-full" style={{ height: `${Math.random() * 80 + 20}%` }}></div>
+                                                  <div key={i} className="w-1 bg-gray-400 dark:bg-white rounded-full" style={{ height: `${Math.random() * 80 + 20}%` }}></div>
                                               ))}
                                           </div>
-                                          <button onClick={deleteVoiceAura} className="p-2 text-gray-500 hover:text-red-400 transition-colors">
+                                          <button onClick={deleteVoiceAura} className="p-2 text-gray-500 hover:text-red-500 transition-colors">
                                               <Trash2 size={14} />
                                           </button>
                                           <audio ref={audioPlayerRef} src={tempAudioUrl || voiceAuraUrl} className="hidden" />
                                      </div>
                                  ) : (
-                                     <span className="text-xs text-gray-500 italic">Aucun enregistrement</span>
+                                     <span className="text-xs text-gray-400 dark:text-gray-500 italic">Aucun enregistrement</span>
                                  )
                              )}
                          </div>
@@ -356,21 +362,21 @@ const EditProfileView: React.FC<EditProfileViewProps> = ({ user, onSave, onCance
 
             {/* Bio Section */}
             <section>
-                <h3 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center justify-between">
+                <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-3 flex items-center justify-between">
                     <span>Votre Bio</span>
                     <span>{bio.length}/500</span>
                 </h3>
                 <textarea 
                     value={bio}
                     onChange={(e) => setBio(e.target.value.slice(0, 500))}
-                    className="w-full h-32 bg-white/5 border border-white/10 rounded-xl p-4 text-white placeholder-gray-600 focus:border-aura-accent outline-none resize-none"
+                    className="w-full h-32 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl p-4 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:border-brand-mid outline-none resize-none transition-colors"
                     placeholder="Racontez votre histoire..."
                 />
             </section>
 
             {/* Interests Section */}
             <section>
-                <h3 className="text-xs font-bold text-gray-500 uppercase mb-3">
+                <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-3">
                     Passions ({selectedInterests.length}/5)
                 </h3>
                 <div className="flex flex-wrap gap-2">
@@ -380,8 +386,8 @@ const EditProfileView: React.FC<EditProfileViewProps> = ({ user, onSave, onCance
                             onClick={() => toggleInterest(interest)}
                             className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
                                 selectedInterests.includes(interest)
-                                ? 'bg-aura-accent text-white border-aura-accent'
-                                : 'bg-white/5 text-gray-400 border-white/10 hover:border-white/30'
+                                ? 'bg-brand-mid text-white border-brand-mid'
+                                : 'bg-gray-50 dark:bg-white/5 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-white/10 hover:bg-gray-100 dark:hover:bg-white/10'
                             }`}
                         >
                             {interest}

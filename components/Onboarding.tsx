@@ -6,9 +6,11 @@ import { QUESTIONS } from '../services/matchingService';
 import { playClick, playMatchSuccess } from '../services/audioService';
 import { uploadPhoto } from '../services/dataService';
 import AuraLogo from './AuraLogo';
+import { useToast } from './Toast';
+import AntiBotVerification from './AntiBotVerification';
 
 interface OnboardingProps {
-  onComplete: (profile: Partial<UserProfile> & { mode: DiscoveryMode }) => void;
+  onComplete: (profile: Partial<UserProfile> & { mode: DiscoveryMode, isVerified: boolean }) => void;
 }
 
 // Static Data for Interests
@@ -20,8 +22,10 @@ const INTERESTS_LIST = [
 ];
 
 const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
-  // Steps: INTRO -> NAME -> QUIZ -> RESULT -> DETAILS -> VISUALS -> SOUL
-  const [step, setStep] = useState<'INTRO' | 'NAME' | 'QUIZ' | 'RESULT' | 'DETAILS' | 'VISUALS' | 'SOUL'>('INTRO');
+  const { showToast } = useToast();
+  
+  // Steps: INTRO -> NAME -> QUIZ -> RESULT -> DETAILS -> VISUALS -> SOUL -> VERIFICATION
+  const [step, setStep] = useState<'INTRO' | 'NAME' | 'QUIZ' | 'RESULT' | 'DETAILS' | 'VISUALS' | 'SOUL' | 'VERIFICATION'>('INTRO');
   
   // --- DATA STATE ---
   const [name, setName] = useState('');
@@ -36,11 +40,11 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
   const [photos, setPhotos] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false); // New loading state
   const [isIncognito, setIsIncognito] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Soul
   const [bio, setBio] = useState('');
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const [isVerified, setIsVerified] = useState(false);
 
   // --- HELPERS ---
 
@@ -133,7 +137,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
                 setPhotos([...photos, publicUrl]);
                 playClick(800);
             } else {
-                alert("Erreur lors de l'upload. Vérifiez votre connexion.");
+                showToast("Erreur lors de l'upload. Vérifiez votre connexion.", "error");
             }
           } catch (err) {
               console.error(err);
@@ -153,7 +157,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
   const handleVisualsNext = () => {
       // Validation: If not incognito, need at least 1 photo
       if (!isIncognito && photos.length === 0) {
-          alert("En mode Clairvoyance, une photo est requise.");
+          showToast("En mode Clairvoyance, une photo est requise.", "error");
           return;
       }
       playClick(700);
@@ -171,8 +175,23 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
       }
   }
 
-  const finish = () => {
-    playClick(700);
+  const goToVerification = () => {
+      if (!bio || selectedInterests.length < 3) {
+          showToast("Dites-en un peu plus sur vous (Bio + 3 Passions).", "info");
+          return;
+      }
+      playClick(800);
+      setStep('VERIFICATION');
+  }
+
+  const handleVerificationSuccess = () => {
+      setIsVerified(true);
+      setTimeout(() => {
+          finish(true);
+      }, 500);
+  }
+
+  const finish = (verified: boolean) => {
     const mbti = calculateMBTI();
     const attachment = calculateAttachment();
     const age = calculateAge(birthDate);
@@ -184,9 +203,10 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
       attachment,
       age,
       imageUrl: photos.length > 0 ? photos[0] : `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
-      photos: photos, // IMPORTANT: Passing the full array of photos
+      photos: photos, // Passing the full array of photos
       interests: selectedInterests,
-      mode: isIncognito ? DiscoveryMode.INCOGNITO : DiscoveryMode.CLAIRVOYANCE
+      mode: isIncognito ? DiscoveryMode.INCOGNITO : DiscoveryMode.CLAIRVOYANCE,
+      isVerified: verified
     });
   };
 
@@ -195,19 +215,18 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
   if (step === 'INTRO') {
       return (
         <div className="flex flex-col items-center justify-center min-h-[80vh] p-6 text-center max-w-md mx-auto animate-float">
-            {/* Ambient Background */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                 <div className="w-64 h-64 bg-brand-start rounded-full blur-[120px] opacity-30 animate-pulse-slow"></div>
+                 <div className="w-64 h-64 bg-brand-start rounded-full blur-[120px] opacity-20 animate-pulse-slow"></div>
             </div>
             
             <div className="mb-8 relative z-10">
                 <div className="absolute inset-0 bg-white/20 blur-3xl opacity-20 rounded-full"></div>
                 <AuraLogo size={120} className="relative z-10" />
             </div>
-            <h1 className="text-6xl font-display font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-white via-purple-200 to-white tracking-tight">
+            <h1 className="text-6xl font-display font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600 dark:from-white dark:via-purple-200 dark:to-white tracking-tight">
                 Aura
             </h1>
-            <p className="text-xl text-gray-400 mb-12 font-body font-light max-w-xs">
+            <p className="text-xl text-gray-500 dark:text-gray-400 mb-12 font-body font-light max-w-xs">
                 La rencontre commence par l'âme.
             </p>
             <button
@@ -223,19 +242,19 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
   if (step === 'NAME') {
       return (
         <div className="flex flex-col items-center justify-center min-h-[80vh] p-6 max-w-md mx-auto animate-fade-in">
-             <h2 className="text-3xl font-display font-bold mb-8 text-center">Comment t'appelles-tu ?</h2>
+             <h2 className="text-3xl font-display font-bold mb-8 text-center text-gray-900 dark:text-white">Comment t'appelles-tu ?</h2>
              <input
                 type="text"
                 autoFocus
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Ton Prénom"
-                className="w-full bg-transparent border-b-2 border-white/10 text-center text-4xl p-4 text-white placeholder-white/20 focus:outline-none focus:border-brand-end transition-all mb-12 font-display"
+                className="w-full bg-transparent border-b-2 border-gray-300 dark:border-white/10 text-center text-4xl p-4 text-gray-900 dark:text-white placeholder-gray-300 dark:placeholder-white/20 focus:outline-none focus:border-brand-end transition-all mb-12 font-display"
              />
              <button
                 onClick={handleNameNext}
                 disabled={!name}
-                className="w-16 h-16 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center disabled:opacity-30 transition-all border border-white/10"
+                className="w-16 h-16 rounded-full bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 flex items-center justify-center disabled:opacity-30 transition-all border border-gray-200 dark:border-white/10 text-gray-900 dark:text-white"
              >
                  <ArrowRight size={28} />
              </button>
@@ -248,7 +267,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
       const progress = ((quizIndex) / QUESTIONS.length) * 100;
       return (
         <div className="flex flex-col min-h-[80vh] max-w-md mx-auto p-6 justify-center animate-fade-in relative">
-            <div className="w-full bg-white/5 h-1 rounded-full mb-10 fixed top-24 left-0 right-0 max-w-md mx-auto">
+            <div className="w-full bg-gray-200 dark:bg-white/5 h-1 rounded-full mb-10 fixed top-24 left-0 right-0 max-w-md mx-auto">
                 <div className="bg-brand-end h-1 rounded-full transition-all duration-500 shadow-[0_0_10px_#FF4B6E]" style={{ width: `${progress}%` }}></div>
             </div>
 
@@ -256,7 +275,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
                 {q.category === 'MBTI' ? 'Analyse Psyché' : 'Analyse Cœur'}
             </span>
             
-            <h2 className="text-2xl font-display font-bold mb-10 leading-relaxed text-white">
+            <h2 className="text-2xl font-display font-bold mb-10 leading-relaxed text-gray-900 dark:text-white">
                 {q.text}
             </h2>
 
@@ -265,7 +284,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
                     <button
                         key={idx}
                         onClick={() => handleAnswer(opt.value)}
-                        className="w-full text-left p-6 rounded-2xl glass-button hover:bg-white/10 hover:border-brand-mid/50 transition-all active:scale-95 text-lg font-medium"
+                        className="w-full text-left p-6 rounded-2xl glass-button bg-white dark:bg-white/5 border border-gray-200 dark:border-transparent hover:bg-gray-50 dark:hover:bg-white/10 hover:border-brand-mid/50 transition-all active:scale-95 text-lg font-medium text-gray-800 dark:text-white shadow-sm"
                     >
                         {opt.text}
                     </button>
@@ -282,18 +301,18 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
         <div className="flex flex-col items-center justify-center min-h-[80vh] p-6 text-center max-w-md mx-auto animate-fade-in">
             <div className="relative mb-8">
                 <div className="absolute inset-0 bg-brand-start blur-3xl opacity-30 animate-pulse"></div>
-                <BrainCircuit className="w-20 h-20 text-white relative z-10" />
+                <BrainCircuit className="w-20 h-20 text-gray-900 dark:text-white relative z-10" />
             </div>
             
-            <h2 className="text-4xl font-display font-bold mb-2">Ton Aura est révélée</h2>
+            <h2 className="text-4xl font-display font-bold mb-2 text-gray-900 dark:text-white">Ton Aura est révélée</h2>
             
-            <div className="glass-panel p-8 rounded-3xl w-full my-8 border border-white/10 relative overflow-hidden">
+            <div className="glass-panel p-8 rounded-3xl w-full my-8 border border-gray-200 dark:border-white/10 relative overflow-hidden bg-white dark:bg-white/5 shadow-lg">
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-brand-start via-brand-end to-brand-start"></div>
                 
                 <div className="grid grid-cols-2 gap-8">
                     <div>
                         <div className="text-[10px] text-gray-400 uppercase tracking-widest mb-2 font-bold">Personnalité</div>
-                        <div className="text-4xl font-display font-bold text-white tracking-wider">{mbti}</div>
+                        <div className="text-4xl font-display font-bold text-gray-900 dark:text-white tracking-wider">{mbti}</div>
                     </div>
                     <div>
                         <div className="text-[10px] text-gray-400 uppercase tracking-widest mb-2 font-bold">Attachement</div>
@@ -302,13 +321,13 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
                 </div>
             </div>
             
-            <p className="text-gray-400 text-sm mb-8 max-w-xs leading-relaxed">
+            <p className="text-gray-500 dark:text-gray-400 text-sm mb-8 max-w-xs leading-relaxed">
                 "C'est la première étape. Complétons maintenant ton profil pour attirer les bonnes âmes."
             </p>
 
             <button
                 onClick={handleResultNext}
-                className="w-full glass-button bg-white/10 text-white py-4 rounded-full font-bold text-lg hover:bg-white/20 transition-all border border-white/20"
+                className="w-full glass-button bg-gray-900 dark:bg-white/10 text-white py-4 rounded-full font-bold text-lg hover:bg-black dark:hover:bg-white/20 transition-all border border-transparent dark:border-white/20 shadow-lg"
             >
                 Finaliser mon profil
             </button>
@@ -319,7 +338,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
   if (step === 'DETAILS') {
       return (
           <div className="flex flex-col min-h-[80vh] max-w-md mx-auto p-6 pt-12 animate-fade-in">
-              <h2 className="text-3xl font-display font-bold mb-2">Quelques détails...</h2>
+              <h2 className="text-3xl font-display font-bold mb-2 text-gray-900 dark:text-white">Quelques détails...</h2>
               <p className="text-gray-500 text-sm mb-10">Pour l'algorithme karmique.</p>
 
               <div className="space-y-8">
@@ -331,7 +350,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
                           type="date" 
                           value={birthDate}
                           onChange={(e) => setBirthDate(e.target.value)}
-                          className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white focus:border-brand-mid outline-none transition-all font-body"
+                          className="w-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl p-4 text-gray-900 dark:text-white focus:border-brand-mid outline-none transition-all font-body"
                       />
                   </div>
 
@@ -344,7 +363,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
                               <button
                                   key={g}
                                   onClick={() => { playClick(); setGender(g as any); }}
-                                  className={`flex-1 py-4 rounded-2xl border transition-all font-bold text-sm ${gender === g ? 'bg-brand-mid border-brand-mid text-white shadow-glow-brand' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}
+                                  className={`flex-1 py-4 rounded-2xl border transition-all font-bold text-sm ${gender === g ? 'bg-brand-mid border-brand-mid text-white shadow-glow-brand' : 'bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'}`}
                               >
                                   {g}
                               </button>
@@ -358,7 +377,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
               <button
                   onClick={handleDetailsNext}
                   disabled={!birthDate || !gender}
-                  className="w-full glass-button bg-white/10 hover:bg-white/20 border border-white/10 text-white py-4 rounded-full font-bold disabled:opacity-30 disabled:cursor-not-allowed transition-all mt-8"
+                  className="w-full glass-button bg-gray-900 dark:bg-white/10 hover:bg-black dark:hover:bg-white/20 border border-transparent dark:border-white/10 text-white py-4 rounded-full font-bold disabled:opacity-30 disabled:cursor-not-allowed transition-all mt-8 shadow-lg"
               >
                   Continuer
               </button>
@@ -369,13 +388,13 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
   if (step === 'VISUALS') {
       return (
           <div className="flex flex-col min-h-[80vh] max-w-md mx-auto p-6 pt-12 animate-fade-in">
-              <h2 className="text-3xl font-display font-bold mb-2">Ton Image</h2>
+              <h2 className="text-3xl font-display font-bold mb-2 text-gray-900 dark:text-white">Ton Image</h2>
               <p className="text-gray-500 text-sm mb-8">Choisis comment tu veux être vu(e).</p>
 
               {/* Incognito Switch - Neo Style */}
-              <div className="glass-panel p-5 rounded-2xl mb-8 flex items-center justify-between border border-white/10 cursor-pointer transition-colors hover:bg-white/5" onClick={() => { playClick(); setIsIncognito(!isIncognito); }}>
+              <div className="glass-panel p-5 rounded-2xl mb-8 flex items-center justify-between border border-gray-200 dark:border-white/10 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-white/5 bg-white dark:bg-white/5" onClick={() => { playClick(); setIsIncognito(!isIncognito); }}>
                   <div>
-                      <div className="flex items-center gap-2 font-bold text-white mb-1">
+                      <div className="flex items-center gap-2 font-bold text-gray-900 dark:text-white mb-1">
                           {isIncognito ? <Ghost size={18} className="text-brand-end"/> : <Eye size={18} className="text-brand-start"/>}
                           Mode {isIncognito ? 'Incognito' : 'Clairvoyance'}
                       </div>
@@ -385,7 +404,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
                               : "Tu es visible."}
                       </p>
                   </div>
-                  <div className={`w-12 h-7 rounded-full p-1 transition-colors duration-300 ${isIncognito ? 'bg-brand-end' : 'bg-carbon border border-white/20'}`}>
+                  <div className={`w-12 h-7 rounded-full p-1 transition-colors duration-300 ${isIncognito ? 'bg-brand-end' : 'bg-gray-300 dark:bg-carbon border border-gray-300 dark:border-white/20'}`}>
                       <div className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-300 ${isIncognito ? 'translate-x-5' : 'translate-x-0'}`}></div>
                   </div>
               </div>
@@ -393,7 +412,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
               {/* Photo Grid */}
               <div className="grid grid-cols-3 gap-3 mb-4">
                   {[0, 1, 2, 3, 4, 5].map((index) => (
-                      <div key={index} className="aspect-[3/4] relative rounded-2xl overflow-hidden bg-white/5 border border-white/5 flex items-center justify-center group hover:border-white/20 transition-all">
+                      <div key={index} className="aspect-[3/4] relative rounded-2xl overflow-hidden bg-gray-200 dark:bg-white/5 border border-gray-200 dark:border-white/5 flex items-center justify-center group hover:border-gray-300 dark:hover:border-white/20 transition-all">
                           {photos[index] ? (
                               <>
                                 <img src={photos[index]} className="w-full h-full object-cover" alt="user" />
@@ -408,7 +427,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
                                 )}
                               </>
                           ) : (
-                              <div className="flex flex-col items-center justify-center text-gray-600 relative">
+                              <div className="flex flex-col items-center justify-center text-gray-400 relative">
                                   {isUploading && index === photos.length ? (
                                       <Loader2 size={20} className="animate-spin text-brand-mid" />
                                   ) : (
@@ -435,7 +454,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
 
               <button
                   onClick={handleVisualsNext}
-                  className="w-full glass-button bg-white/10 text-white py-4 rounded-full font-bold text-lg hover:bg-white/20 transition-all border border-white/20 mt-6"
+                  className="w-full glass-button bg-gray-900 dark:bg-white/10 text-white py-4 rounded-full font-bold text-lg hover:bg-black dark:hover:bg-white/20 transition-all border border-transparent dark:border-white/20 mt-6 shadow-lg"
               >
                   Continuer
               </button>
@@ -446,7 +465,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
   if (step === 'SOUL') {
       return (
           <div className="flex flex-col min-h-[80vh] max-w-md mx-auto p-6 pt-12 animate-fade-in">
-              <h2 className="text-3xl font-display font-bold mb-2">Ton Esprit</h2>
+              <h2 className="text-3xl font-display font-bold mb-2 text-gray-900 dark:text-white">Ton Esprit</h2>
               <p className="text-gray-500 text-sm mb-8">Ce qui te fait vibrer.</p>
 
               <div className="mb-8">
@@ -458,7 +477,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
                       value={bio}
                       onChange={(e) => setBio(e.target.value.slice(0, 500))}
                       placeholder="Raconte ton histoire..."
-                      className="w-full h-32 bg-white/5 border border-white/10 rounded-2xl p-4 text-white placeholder-white/20 focus:border-brand-mid outline-none resize-none font-body text-lg"
+                      className="w-full h-32 bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl p-4 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-white/20 focus:border-brand-mid outline-none resize-none font-body text-lg"
                   />
               </div>
 
@@ -474,7 +493,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
                               className={`px-4 py-2 rounded-full text-xs font-bold border transition-all ${
                                   selectedInterests.includes(interest)
                                     ? 'bg-brand-mid text-white border-brand-mid shadow-glow-brand'
-                                    : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10'
+                                    : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/10'
                               }`}
                           >
                               {interest}
@@ -486,13 +505,21 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
               <div className="flex-1"></div>
 
               <button
-                  onClick={finish}
+                  onClick={goToVerification}
                   className="w-full bg-gradient-to-r from-brand-start to-brand-end text-white py-4 rounded-full font-display font-bold text-xl shadow-glow-brand hover:opacity-90 transition-all transform hover:scale-[1.02]"
               >
-                  Lancer Aura
+                  Finaliser
               </button>
           </div>
       );
+  }
+
+  if (step === 'VERIFICATION') {
+      return (
+          <div className="max-w-md mx-auto w-full">
+             <AntiBotVerification onVerified={handleVerificationSuccess} />
+          </div>
+      )
   }
 
   return null;

@@ -5,6 +5,7 @@ import { playClick, playMatchSuccess, playSuperLike } from '../services/audioSer
 import { upgradeToPremium, getCurrentUserId, getPendingLikes, getMyProfile } from '../services/dataService';
 import { SubscriptionTier } from '../types';
 import clsx from 'clsx';
+import { useToast } from './Toast';
 
 interface PremiumModalProps {
   onClose: () => void;
@@ -17,7 +18,7 @@ type PlanType = 'SILVER' | 'GOLD' | 'INFINITY';
 const PLANS = {
     SILVER: {
         title: "Silver",
-        baseColor: "text-gray-200",
+        baseColor: "text-gray-500 dark:text-gray-200",
         gradient: "from-gray-300 to-slate-400",
         btnGradient: "from-gray-600 to-gray-500",
         icon: Sparkles,
@@ -35,7 +36,7 @@ const PLANS = {
     },
     GOLD: {
         title: "Gold",
-        baseColor: "text-yellow-400",
+        baseColor: "text-yellow-600 dark:text-yellow-400",
         gradient: "from-yellow-400 to-amber-600",
         btnGradient: "from-yellow-500 to-amber-600",
         icon: Crown,
@@ -54,7 +55,7 @@ const PLANS = {
     },
     INFINITY: {
         title: "Infinity",
-        baseColor: "text-fuchsia-400",
+        baseColor: "text-fuchsia-600 dark:text-fuchsia-400",
         gradient: "from-fuchsia-500 to-purple-600",
         btnGradient: "from-fuchsia-600 to-purple-700",
         icon: Infinity,
@@ -74,6 +75,7 @@ const PLANS = {
 };
 
 const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onUpgradeSuccess }) => {
+  const { showToast } = useToast();
   const [planType, setPlanType] = useState<PlanType>('GOLD'); 
   const [selectedDurationIndex, setSelectedDurationIndex] = useState(1); // 1 Mois par défaut
   const [loading, setLoading] = useState(false);
@@ -131,7 +133,7 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onUpgradeSuccess }
                 if (onUpgradeSuccess) onUpgradeSuccess();
                 onClose();
             } else {
-                alert("Une erreur est survenue lors de l'activation. Veuillez réessayer.");
+                showToast("Erreur lors de l'activation.", "error");
                 setLoading(false);
             }
           }, 1500);
@@ -148,12 +150,12 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onUpgradeSuccess }
       
       <div className="absolute inset-0 bg-black/90 backdrop-blur-md animate-fade-in" onClick={() => { playClick(); onClose(); }}></div>
       
-      <div className="relative w-full max-w-md bg-[#0F0F11] sm:rounded-[2.5rem] rounded-t-[2.5rem] border border-white/5 shadow-2xl flex flex-col overflow-hidden animate-slide-up max-h-[95vh]">
+      <div className="relative w-full max-w-md bg-white dark:bg-[#0F0F11] sm:rounded-[2.5rem] rounded-t-[2.5rem] border border-gray-200 dark:border-white/5 shadow-2xl flex flex-col overflow-hidden animate-slide-up max-h-[95vh] transition-colors duration-300">
         
         {/* Close Button */}
         <button 
           onClick={onClose}
-          className="absolute top-5 right-5 p-2 bg-black/20 backdrop-blur rounded-full text-gray-400 hover:text-white z-50 transition-colors border border-white/5"
+          className="absolute top-5 right-5 p-2 bg-gray-100 dark:bg-black/20 backdrop-blur rounded-full text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white z-50 transition-colors border border-gray-200 dark:border-white/5"
         >
           <X size={20} />
         </button>
@@ -163,7 +165,7 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onUpgradeSuccess }
             {/* Ambient Glow */}
             <div 
                 className={clsx(
-                    "absolute top-0 left-1/2 -translate-x-1/2 w-full h-64 opacity-20 blur-[80px] pointer-events-none transition-colors duration-700",
+                    "absolute top-0 left-1/2 -translate-x-1/2 w-full h-64 opacity-10 dark:opacity-20 blur-[80px] pointer-events-none transition-colors duration-700",
                     planType === 'SILVER' ? "bg-gray-400" : planType === 'GOLD' ? "bg-yellow-500" : "bg-fuchsia-500"
                 )}
             ></div>
@@ -174,12 +176,12 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onUpgradeSuccess }
                 ) : likesCount > 0 ? (
                     <div className="flex justify-center -space-x-3 items-center animate-fade-in">
                         {realLikers.map((url, i) => (
-                            <div key={i} className="w-10 h-10 rounded-full border-2 border-[#0F0F11] overflow-hidden relative shadow-lg">
+                            <div key={i} className="w-10 h-10 rounded-full border-2 border-white dark:border-[#0F0F11] overflow-hidden relative shadow-lg">
                                 <img src={url} className="w-full h-full object-cover blur-[4px] scale-110" />
                                 <div className="absolute inset-0 bg-black/10"></div>
                             </div>
                         ))}
-                        <div className="px-3 py-1 rounded-full bg-white/10 border border-white/10 text-xs font-bold text-white shadow-lg ml-2 backdrop-blur-md">
+                        <div className="px-3 py-1 rounded-full bg-white/80 dark:bg-white/10 border border-gray-200 dark:border-white/10 text-xs font-bold text-gray-900 dark:text-white shadow-lg ml-2 backdrop-blur-md">
                             {likesCount} personnes vous ont liké
                         </div>
                     </div>
@@ -194,7 +196,7 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onUpgradeSuccess }
 
         {/* --- PLAN TOGGLE (Switcher) --- */}
         <div className="px-6 mb-6">
-            <div className="w-full p-1 bg-white/5 rounded-2xl flex relative border border-white/5 h-12">
+            <div className="w-full p-1 bg-gray-100 dark:bg-white/5 rounded-2xl flex relative border border-gray-200 dark:border-white/5 h-12">
                 {/* Animated Background */}
                 <div 
                     className={clsx(
@@ -209,19 +211,19 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onUpgradeSuccess }
 
                 <button 
                     onClick={() => handlePlanTypeChange('SILVER')}
-                    className={clsx("flex-1 rounded-xl text-xs font-bold uppercase tracking-wider z-10 transition-colors", planType === 'SILVER' ? "text-black" : "text-gray-500 hover:text-gray-300")}
+                    className={clsx("flex-1 rounded-xl text-xs font-bold uppercase tracking-wider z-10 transition-colors", planType === 'SILVER' ? "text-white dark:text-black" : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-300")}
                 >
                     Silver
                 </button>
                 <button 
                     onClick={() => handlePlanTypeChange('GOLD')}
-                    className={clsx("flex-1 rounded-xl text-xs font-bold uppercase tracking-wider z-10 transition-colors", planType === 'GOLD' ? "text-black" : "text-gray-500 hover:text-gray-300")}
+                    className={clsx("flex-1 rounded-xl text-xs font-bold uppercase tracking-wider z-10 transition-colors", planType === 'GOLD' ? "text-black" : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-300")}
                 >
                     Gold
                 </button>
                 <button 
                     onClick={() => handlePlanTypeChange('INFINITY')}
-                    className={clsx("flex-1 rounded-xl text-xs font-bold uppercase tracking-wider z-10 transition-colors", planType === 'INFINITY' ? "text-white" : "text-gray-500 hover:text-gray-300")}
+                    className={clsx("flex-1 rounded-xl text-xs font-bold uppercase tracking-wider z-10 transition-colors", planType === 'INFINITY' ? "text-white" : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-300")}
                 >
                     Infinity
                 </button>
@@ -239,7 +241,7 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onUpgradeSuccess }
                         <div className={clsx("w-5 h-5 rounded-full flex items-center justify-center shadow-sm shrink-0 bg-gradient-to-br", currentPlan.gradient)}>
                             <feat.icon size={10} className={planType === 'INFINITY' ? "text-white" : "text-black/70"} strokeWidth={3} />
                         </div>
-                        <span className="text-sm font-medium text-gray-300">{feat.text}</span>
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{feat.text}</span>
                     </div>
                 ))}
              </div>
@@ -256,21 +258,21 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onUpgradeSuccess }
                             onClick={() => handleDurationSelect(idx)}
                             className={clsx(
                                 "relative flex flex-col items-center justify-center py-4 px-1 rounded-2xl border transition-all duration-300",
-                                isSelected ? "bg-white/10 border-white/20 shadow-glass transform scale-105" : "bg-white/5 border-transparent opacity-60 hover:opacity-100"
+                                isSelected ? "bg-gray-50 dark:bg-white/10 border-gray-300 dark:border-white/20 shadow-glass transform scale-105" : "bg-gray-50 dark:bg-white/5 border-transparent opacity-60 hover:opacity-100"
                             )}
                         >
                             {price.badge && (
                                 <div className={clsx(
                                     "absolute -top-2.5 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider shadow-md z-20",
-                                    isSelected ? `bg-gradient-to-r ${currentPlan.gradient} text-black` : "bg-gray-700 text-gray-400"
+                                    isSelected ? `bg-gradient-to-r ${currentPlan.gradient} text-black` : "bg-gray-300 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
                                 )}>
                                     {price.badge}
                                 </div>
                             )}
                             
-                            <span className="text-[10px] font-bold text-gray-400 uppercase mb-1">{price.duration}</span>
+                            <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">{price.duration}</span>
                             <div className="flex items-baseline gap-0.5">
-                                <span className="text-lg font-display font-bold text-white">{price.perWeek.toFixed(2)}€</span>
+                                <span className="text-lg font-display font-bold text-gray-900 dark:text-white">{price.perWeek.toFixed(2)}€</span>
                             </div>
                             <span className="text-[9px] text-gray-500">/ semaine</span>
                         </button>
@@ -296,7 +298,7 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onUpgradeSuccess }
                 )}
             </button>
             
-            <p className="mt-3 text-[9px] text-center text-gray-600">
+            <p className="mt-3 text-[9px] text-center text-gray-500 dark:text-gray-600">
                 Paiement unique. Renouvellement auto. Annulation facile.
             </p>
         </div>

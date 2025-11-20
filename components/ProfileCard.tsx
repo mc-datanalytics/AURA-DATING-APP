@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, DiscoveryMode } from '../types';
-import { Eye, Heart, X, Zap, Brain, Activity, ChevronUp, Lock, CheckCircle2, HelpCircle, Sparkles, Flame, Droplets, Mountain, Wind, Info, FileText, Leaf, Stars, Fingerprint, Shield, Play, Pause, Volume2, RotateCcw, MapPin, BadgeCheck } from 'lucide-react';
+import { Eye, Heart, X, Zap, Brain, Activity, ChevronUp, Lock, CheckCircle2, HelpCircle, Sparkles, Flame, Droplets, Mountain, Wind, Info, FileText, Leaf, Stars, Fingerprint, Shield, Play, Pause, Volume2, RotateCcw, MapPin, BadgeCheck, ShieldCheck } from 'lucide-react';
 import CompatibilityChart from './CompatibilityChart';
 import CompatibilityReportModal from './CompatibilityReportModal';
 import clsx from 'clsx';
@@ -182,6 +182,11 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, currentUser, mode, o
   const sheetTranslateY = showDetails ? '0%' : isVerticalDragUp ? `calc(100% + ${dragY}px)` : '100%';
   const infoOpacity = isVerticalDragUp ? Math.max(0, 1 - (Math.abs(dragY) / 200)) : 1;
 
+  // Formattage de la distance
+  const displayDistance = profile.distanceKm !== undefined 
+      ? (profile.distanceKm < 1 ? "< 1 km" : `${Math.round(profile.distanceKm)} km`) 
+      : null;
+
   // Simplified Chart Data for Grand Public
   const chartData = [
     { subject: 'Cœur', A: details.emotional, fullMark: 100 },
@@ -239,11 +244,11 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, currentUser, mode, o
 
       <div 
         ref={cardRef}
-        className={clsx("relative w-full h-full rounded-[2rem] overflow-hidden bg-carbon select-none touch-none shadow-[0_25px_50px_-12px_rgba(0,0,0,0.8)]", isAnimating && "transition-transform duration-300 cubic-bezier(0.25, 0.8, 0.25, 1)")}
+        className={clsx("relative w-full h-full rounded-[2rem] overflow-hidden bg-white dark:bg-carbon select-none touch-none shadow-[0_25px_50px_-12px_rgba(0,0,0,0.3)] dark:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.8)]", isAnimating && "transition-transform duration-300 cubic-bezier(0.25, 0.8, 0.25, 1)")}
         style={{ 
             transform: cardTransform,
             // Bioluminescent Inner Glow matching element - Reduced intensity for natural look
-            boxShadow: `inset 0 0 20px ${auraColor}20, 0 25px 50px -12px rgba(0,0,0,0.8)` 
+            boxShadow: `inset 0 0 20px ${auraColor}20` 
         }}
         onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp}
       >
@@ -254,11 +259,11 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, currentUser, mode, o
         {/* Image Layer */}
         <div className="relative w-full h-full">
             
-            {/* Distance Badge (Top Right) */}
-            {!isIncognito && (
+            {/* Distance Badge (Top Right) - Dynamic Location */}
+            {!isIncognito && displayDistance && (
                 <div className="absolute top-4 right-4 z-20 px-3 py-1.5 rounded-full bg-black/20 backdrop-blur-md border border-white/10 flex items-center gap-1.5 text-white/80 shadow-lg">
                     <MapPin size={10} />
-                    <span className="text-[10px] font-bold tracking-wider uppercase">5 km</span>
+                    <span className="text-[10px] font-bold tracking-wider uppercase">{displayDistance}</span>
                 </div>
             )}
 
@@ -327,8 +332,10 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, currentUser, mode, o
                       {/* Name & Age & Verified - Clash Display */}
                       <div className="flex items-end gap-2 mb-1">
                           <h2 className="text-4xl font-display font-bold text-white drop-shadow-lg tracking-tight">{profile.name}</h2>
-                          {/* Updated Verified Badge: Clean & Sleek */}
-                          <BadgeCheck size={24} className="text-blue-500 mb-2 drop-shadow-lg" fill="currentColor" stroke="white" strokeWidth={1.5} />
+                          {/* Verified Badge */}
+                          {profile.isVerified && (
+                             <ShieldCheck size={24} className="text-brand-mid mb-2 drop-shadow-lg fill-white" strokeWidth={1.5} />
+                          )}
                           <span className="text-2xl font-display font-light text-gray-300 mb-1.5 ml-1">{profile.age}</span>
                       </div>
 
@@ -340,60 +347,63 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, currentUser, mode, o
             </div>
         </div>
 
-        {/* DETAILS SHEET (Expanded) - Obsidian Background */}
+        {/* DETAILS SHEET (Expanded) - Adaptive Background */}
         <div 
             ref={contentRef}
-            className={clsx("absolute inset-0 z-40 bg-obsidian/90 backdrop-blur-xl flex flex-col transition-transform duration-300 cubic-bezier(0.25, 0.8, 0.25, 1)")}
+            className={clsx("absolute inset-0 z-40 bg-white/95 dark:bg-obsidian/90 backdrop-blur-xl flex flex-col transition-transform duration-300 cubic-bezier(0.25, 0.8, 0.25, 1)")}
             style={{ transform: `translateY(${sheetTranslateY})` }}
             onWheel={handleWheel} 
         >
-             <div className="p-6 pt-16 overflow-y-auto custom-scrollbar h-full">
-                 <button onClick={toggleDetails} className="absolute top-4 right-4 p-2 bg-white/5 rounded-full text-white hover:bg-white/10 transition-colors"><ChevronUp size={24} className="rotate-180" /></button>
+             <div className="p-6 pt-16 overflow-y-auto custom-scrollbar h-full text-gray-900 dark:text-white">
+                 <button onClick={toggleDetails} className="absolute top-4 right-4 p-2 bg-gray-100 dark:bg-white/5 rounded-full text-gray-600 dark:text-white hover:bg-gray-200 dark:hover:bg-white/10 transition-colors"><ChevronUp size={24} className="rotate-180" /></button>
                  
                  <div className="text-center mb-8">
                      {/* Avatar with Elemental Ring */}
-                     <div className="w-28 h-28 rounded-full mx-auto mb-4 p-1 relative shadow-[0_0_30px_rgba(0,0,0,0.5)]">
+                     <div className="w-28 h-28 rounded-full mx-auto mb-4 p-1 relative shadow-[0_0_30px_rgba(0,0,0,0.2)] dark:shadow-[0_0_30px_rgba(0,0,0,0.5)]">
                          <div className="absolute inset-0 rounded-full border-2 border-dashed opacity-50 animate-spin-slow" style={{ borderColor: auraColor }}></div>
-                         <img src={profile.imageUrl} className="w-full h-full rounded-full object-cover border-2 border-black" />
+                         <img src={profile.imageUrl} className="w-full h-full rounded-full object-cover border-2 border-white dark:border-black" />
                          
                          {profile.voiceAuraUrl && (
                              <button 
                                 onClick={toggleVoiceAura}
-                                className="absolute -bottom-2 -right-2 w-10 h-10 rounded-full bg-carbon border border-white/10 flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
+                                className="absolute -bottom-2 -right-2 w-10 h-10 rounded-full bg-white dark:bg-carbon border border-gray-200 dark:border-white/10 flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
                              >
-                                 {isPlayingVoice ? <span className="flex items-center gap-0.5 h-3"><span className="w-1 h-full bg-white animate-pulse"/> <span className="w-1 h-2/3 bg-white animate-pulse delay-75"/></span> : <Play size={14} fill="white" className="text-white ml-1"/>}
+                                 {isPlayingVoice ? <span className="flex items-center gap-0.5 h-3"><span className="w-1 h-full bg-aura-accent animate-pulse"/> <span className="w-1 h-2/3 bg-aura-accent animate-pulse delay-75"/></span> : <Play size={14} fill="currentColor" className="text-aura-accent ml-1"/>}
                              </button>
                          )}
                      </div>
                      
-                     <h2 className="text-3xl font-display font-bold text-white mb-1">{profile.name}, {profile.age}</h2>
+                     <h2 className="text-3xl font-display font-bold text-gray-900 dark:text-white mb-1 flex items-center justify-center gap-2">
+                        {profile.name}, {profile.age}
+                        {profile.isVerified && <ShieldCheck size={24} className="text-brand-mid fill-white/10" />}
+                     </h2>
                      
                      {/* Tags MBTI/Attachment */}
                      <div className="flex justify-center gap-2 opacity-70 mt-2">
-                         <span className="px-3 py-1 rounded-lg bg-white/5 text-[10px] text-gray-300 border border-white/5 font-bold uppercase tracking-widest">{profile.mbti}</span>
-                         <span className="px-3 py-1 rounded-lg bg-white/5 text-[10px] text-gray-300 border border-white/5 font-bold uppercase tracking-widest">{profile.attachment}</span>
+                         <span className="px-3 py-1 rounded-lg bg-gray-100 dark:bg-white/5 text-[10px] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-white/5 font-bold uppercase tracking-widest">{profile.mbti}</span>
+                         <span className="px-3 py-1 rounded-lg bg-gray-100 dark:bg-white/5 text-[10px] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-white/5 font-bold uppercase tracking-widest">{profile.attachment}</span>
                      </div>
                  </div>
 
                  <div className="space-y-6 pb-20">
                      
                      {/* Section Graphique */}
-                     <div className="glass-panel rounded-3xl p-5">
+                     <div className="glass-panel rounded-3xl p-5 bg-white/80 dark:bg-white/5 border border-gray-100 dark:border-transparent">
                          <div className="flex justify-between items-center mb-4">
-                             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex gap-2 items-center"><Fingerprint size={14}/> Empreinte</h3>
-                             <div className="px-2 py-0.5 rounded bg-white/5 text-[10px] font-bold text-white border border-white/5">{score}%</div>
+                             <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest flex gap-2 items-center"><Fingerprint size={14}/> Empreinte</h3>
+                             <div className="px-2 py-0.5 rounded bg-gray-100 dark:bg-white/5 text-[10px] font-bold text-gray-900 dark:text-white border border-gray-200 dark:border-white/5">{score}%</div>
                          </div>
                          
                          <div className="h-48 relative mb-4">
                              <CompatibilityChart data={chartData} onHoverLabel={setHoveredStat} />
                          </div>
 
-                         <div className="p-4 bg-black/40 rounded-2xl text-center min-h-[80px] flex flex-col justify-center border border-white/5 transition-all">
-                             <span className="text-xs font-bold text-white uppercase block mb-1 flex items-center justify-center gap-2 tracking-wider">
+                         <div className="p-4 bg-gray-50 dark:bg-black/40 rounded-2xl text-center min-h-[80px] flex flex-col justify-center border border-gray-200 dark:border-white/5 transition-all">
+                             <span className="text-xs font-bold text-gray-900 dark:text-white uppercase block mb-1 flex items-center justify-center gap-2 tracking-wider">
                                  {hoveredStat ? React.createElement(STAT_DEFINITIONS[hoveredStat].icon, { size: 14, className: "text-brand-mid" }) : <Sparkles size={14} className="text-brand-mid"/>}
                                  {hoveredStat ? STAT_DEFINITIONS[hoveredStat].question : "Analysez votre synergie"}
                              </span>
-                             <span className="text-[10px] text-gray-400 leading-tight font-medium">
+                             <span className="text-[10px] text-gray-500 dark:text-gray-400 leading-tight font-medium">
                                  {hoveredStat ? STAT_DEFINITIONS[hoveredStat].desc : "Touchez les dimensions ci-dessous."}
                              </span>
                          </div>
@@ -408,7 +418,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, currentUser, mode, o
                                         onClick={() => { playClick(); setHoveredStat(key); }}
                                         className={clsx(
                                             "flex flex-col items-center justify-center p-3 rounded-xl min-w-[55px] transition-all border",
-                                            isActive ? "bg-white/10 border-white/20 text-white shadow-glass scale-105" : "bg-transparent border-transparent text-gray-600 hover:text-gray-400"
+                                            isActive ? "bg-gray-100 dark:bg-white/10 border-gray-300 dark:border-white/20 text-gray-900 dark:text-white shadow-glass scale-105" : "bg-transparent border-transparent text-gray-500 dark:text-gray-600 hover:text-gray-700 dark:hover:text-gray-400"
                                         )}
                                      >
                                          <Icon size={18} className="mb-1.5" />
@@ -421,17 +431,17 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, currentUser, mode, o
 
                      <div>
                          <h3 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-2 tracking-widest"><Leaf size={14}/> Passions</h3>
-                         <div className="flex flex-wrap gap-2">{profile.interests.map(i => <span key={i} className="px-4 py-1.5 bg-white/5 rounded-full text-xs text-white font-medium border border-white/5 hover:border-brand-mid hover:bg-brand-mid/10 transition-colors">{i}</span>)}</div>
+                         <div className="flex flex-wrap gap-2">{profile.interests.map(i => <span key={i} className="px-4 py-1.5 bg-gray-100 dark:bg-white/5 rounded-full text-xs text-gray-700 dark:text-white font-medium border border-gray-200 dark:border-white/5 hover:border-brand-mid hover:bg-brand-mid/10 transition-colors">{i}</span>)}</div>
                      </div>
 
-                     <button onClick={() => { playClick(); setShowReport(true); }} className="w-full py-4 bg-gradient-to-r from-brand-mid/20 to-brand-end/20 border border-brand-mid/30 rounded-2xl text-xs font-bold text-white shadow-lg flex items-center justify-center gap-2 hover:bg-brand-mid/30 transition-all uppercase tracking-widest">
+                     <button onClick={() => { playClick(); setShowReport(true); }} className="w-full py-4 bg-gradient-to-r from-brand-mid/10 to-brand-end/10 border border-brand-mid/20 rounded-2xl text-xs font-bold text-brand-mid dark:text-white shadow-lg flex items-center justify-center gap-2 hover:bg-brand-mid/20 transition-all uppercase tracking-widest">
                          <FileText size={14} /> Rapport Cosmique complet
                      </button>
 
                      <div className="flex justify-center pt-4">
                          <button 
                             onClick={() => setShowReportModal(true)}
-                            className="text-[10px] text-gray-600 hover:text-red-400 flex items-center gap-1.5 transition-colors font-bold uppercase tracking-wider"
+                            className="text-[10px] text-gray-400 hover:text-red-400 flex items-center gap-1.5 transition-colors font-bold uppercase tracking-wider"
                          >
                              <Shield size={12} /> Signaler
                          </button>
@@ -446,15 +456,15 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, currentUser, mode, o
            
            {/* Main Trio - Perfectly Centered */}
            <div className="flex justify-center items-center gap-6">
-               <button onClick={() => triggerSwipe('left')} className="w-16 h-16 bg-carbon border border-white/5 rounded-full text-red-500 flex items-center justify-center shadow-glass hover:scale-110 hover:border-red-500 transition-all group">
+               <button onClick={() => triggerSwipe('left')} className="w-16 h-16 bg-white/90 dark:bg-carbon border border-gray-200 dark:border-white/5 rounded-full text-red-500 flex items-center justify-center shadow-glass hover:scale-110 hover:border-red-500 transition-all group">
                    <X size={32} className="group-hover:scale-110 transition-transform" />
                </button>
                
-               <button onClick={() => triggerSwipe('super')} className="w-12 h-12 bg-carbon border border-blue-500/30 rounded-full text-blue-400 flex items-center justify-center shadow-glass hover:scale-110 hover:border-blue-500 hover:shadow-[0_0_20px_rgba(59,130,246,0.4)] -translate-y-3 transition-all group">
+               <button onClick={() => triggerSwipe('super')} className="w-12 h-12 bg-white/90 dark:bg-carbon border border-brand-start/30 rounded-full text-brand-start dark:text-violet-400 flex items-center justify-center shadow-[0_0_20px_rgba(127,0,255,0.4)] hover:scale-110 hover:border-brand-start -translate-y-3 transition-all group">
                    <Zap size={22} fill="currentColor" className="group-hover:scale-110 transition-transform" />
                </button>
                
-               <button onClick={() => triggerSwipe('right')} className="w-16 h-16 bg-carbon border border-white/5 rounded-full text-brand-end flex items-center justify-center shadow-glass hover:scale-110 hover:border-brand-end transition-all group">
+               <button onClick={() => triggerSwipe('right')} className="w-16 h-16 bg-white/90 dark:bg-carbon border border-gray-200 dark:border-white/5 rounded-full text-brand-end flex items-center justify-center shadow-glass hover:scale-110 hover:border-brand-end transition-all group">
                    <Heart size={32} fill="currentColor" className="group-hover:scale-110 transition-transform" />
                </button>
            </div>
