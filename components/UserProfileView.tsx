@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { UserProfile, NotificationSettings } from '../types';
-import { Volume2, VolumeX, Crown, LogOut, Shield, Sliders, Trash2, Eye, Bell, Zap, Sparkles, Activity, Wind, ChevronRight, Info, UserCog, User, Moon, Sun } from 'lucide-react';
+import { Volume2, VolumeX, Crown, LogOut, Shield, Sliders, Trash2, Eye, Bell, Zap, Sparkles, Activity, Wind, ChevronRight, Info, UserCog, User, Moon, Sun, Loader2 } from 'lucide-react';
 import { playClick } from '../services/audioService';
 import { getElementColor } from '../services/auraEngine';
 import SecurityHelpModal from './SecurityHelpModal';
@@ -46,6 +46,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
 }) => {
 
   const [confirmAction, setConfirmAction] = useState<'LOGOUT' | 'DELETE' | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [showNotifSettings, setShowNotifSettings] = useState(false);
   const [showSecurityModal, setShowSecurityModal] = useState(false);
 
@@ -78,6 +79,18 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
   const triggerLogout = () => { playClick(600); setConfirmAction('LOGOUT'); }
   const triggerDelete = () => { playClick(500); setConfirmAction('DELETE'); }
   
+  const handleConfirmAction = async () => {
+      setIsProcessing(true);
+      if (confirmAction === 'LOGOUT') {
+          await onLogout();
+      } else {
+          await onDeleteAccount();
+      }
+      // Note: Navigation happens in parent, but we clean up here
+      setIsProcessing(false);
+      setConfirmAction(null);
+  }
+
   const getElementIcon = (elem: string) => {
       switch(elem) {
           case 'FEU': return <Activity size={24} />; 
@@ -99,9 +112,24 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                 <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2 text-center">
                     {confirmAction === 'DELETE' ? 'Supprimer le compte ?' : 'Se déconnecter ?'}
                 </h3>
+                {confirmAction === 'DELETE' && (
+                     <p className="text-center text-sm text-gray-500 mb-4">Cette action est irréversible. Toutes vos données (matchs, messages, photos) seront effacées.</p>
+                )}
                 <div className="flex gap-3 w-full mt-6">
-                    <button onClick={() => setConfirmAction(null)} className="flex-1 py-3 bg-gray-100 dark:bg-white/5 rounded-xl text-gray-600 dark:text-gray-300 font-medium hover:bg-gray-200 dark:hover:bg-white/10 transition-colors">Annuler</button>
-                    <button onClick={() => confirmAction === 'LOGOUT' ? onLogout() : onDeleteAccount()} className="flex-1 py-3 bg-gradient-to-r from-brand-mid to-brand-end rounded-xl text-white font-bold hover:opacity-90 transition-opacity">Confirmer</button>
+                    <button 
+                        onClick={() => setConfirmAction(null)} 
+                        disabled={isProcessing}
+                        className="flex-1 py-3 bg-gray-100 dark:bg-white/5 rounded-xl text-gray-600 dark:text-gray-300 font-medium hover:bg-gray-200 dark:hover:bg-white/10 transition-colors disabled:opacity-50"
+                    >
+                        Annuler
+                    </button>
+                    <button 
+                        onClick={handleConfirmAction}
+                        disabled={isProcessing}
+                        className={`flex-1 py-3 rounded-xl text-white font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-50 ${confirmAction === 'DELETE' ? 'bg-red-500' : 'bg-gradient-to-r from-brand-mid to-brand-end'}`}
+                    >
+                        {isProcessing ? <Loader2 className="animate-spin" size={18}/> : "Confirmer"}
+                    </button>
                 </div>
             </div>
         </div>

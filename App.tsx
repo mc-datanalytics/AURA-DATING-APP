@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { AppView, DiscoveryMode, UserProfile, ChatSession, Message, NotificationSettings, DiscoverySettings } from './types';
@@ -321,9 +322,14 @@ const AppContent: React.FC = () => {
       navigate('/auth');
   };
 
-  const handleDeleteAccount = () => {
-      handleLogout();
-      showToast("Compte supprimé", "info");
+  const handleDeleteAccount = async () => {
+      const success = await DataService.deleteAccount();
+      if (success) {
+          navigate('/auth');
+          showToast("Compte définitivement supprimé", "info");
+      } else {
+          showToast("Erreur lors de la suppression", "error");
+      }
   };
 
   const handleMatchFromLikes = async (target: UserProfile) => {

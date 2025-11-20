@@ -62,6 +62,49 @@ export const signOut = async () => {
     blockedUserIds = [];
 }
 
+export const deleteAccount = async (): Promise<boolean> => {
+    try {
+        const userId = getCurrentUserId();
+        if (!userId) return false;
+
+        // 1. Nettoyage du Stockage (Photos)
+        try {
+            const { data: files } = await supabase.storage.from('avatars').list(userId);
+            if (files && files.length > 0) {
+                const filesToRemove = files.map(x => `${userId}/${x.name}`);
+                await supabase.storage.from('avatars').remove(filesToRemove);
+            }
+        } catch (storageError) {
+            console.warn("Storage cleanup failed, continuing...", storageError);
+        }
+        
+        // 2. Tentative de suppression via RPC
+        const { error } = await supabase.rpc('delete_own_account');
+        
+        if (error) {
+            const errorMsg = error.message || JSON.stringify(error);
+            console.warn(`RPC Delete Error (Falling back to manual): ${errorMsg}`);
+            
+            // FALLBACK : Suppression manuelle si RPC échoue
+            const { error: fallbackError } = await supabase.from('profiles').delete().eq('id', userId);
+            
+            if (fallbackError) {
+                const fallbackMsg = fallbackError.message || JSON.stringify(fallbackError);
+                console.error(`Manual Profile Delete Error: ${fallbackMsg}`);
+                throw new Error(fallbackMsg);
+            }
+        }
+
+        // 3. Déconnexion locale
+        await signOut();
+        return true;
+    } catch (error: any) {
+        const msg = error.message || JSON.stringify(error);
+        console.error(`Erreur fatale lors de la suppression du compte: ${msg}`);
+        return false;
+    }
+};
+
 export const getCurrentUserId = (): string | null => localStorage.getItem(STORAGE_KEY_USER_ID);
 export const setCurrentUserId = (id: string) => localStorage.setItem(STORAGE_KEY_USER_ID, id);
 
@@ -72,10 +115,8 @@ export const uploadPhoto = async (file: File): Promise<string | null> => {
         if (!userId) throw new Error("User not logged in");
 
         // 1. OPTIMISATION DE L'IMAGE (Client-Side)
-        // On convertit tout en WebP pour la performance
         const compressedBlob = await compressImage(file);
         
-        // On force l'extension .webp
         const fileName = `${userId}/${Date.now()}_${Math.random().toString(36).substring(7)}.webp`;
 
         // 2. UPLOAD VERS SUPABASE
@@ -103,7 +144,6 @@ export const uploadVoiceAura = async (blob: Blob): Promise<string | null> => {
 
         const fileName = `${userId}/voice_aura_${Date.now()}.webm`;
         
-        // We reuse 'avatars' bucket for simplicity in this demo, or a specific 'audio' bucket if available
         const { error: uploadError } = await supabase.storage.from('avatars').upload(fileName, blob, {
             contentType: 'audio/webm'
         });
@@ -128,7 +168,6 @@ export const uploadChatMedia = async (file: File | Blob, type: 'image' | 'audio'
         const contentType = type === 'image' ? 'image/webp' : 'audio/webm';
         const fileName = `${userId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
 
-        // Compress if image
         let fileToUpload = file;
         if (type === 'image' && file instanceof File) {
             fileToUpload = await compressImage(file);
@@ -167,7 +206,7 @@ export const updateUserLocation = async (): Promise<UserLocation | null> => {
                 console.warn("Geolocation denied or error:", error);
                 resolve(null);
             },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 } // High accuracy
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
         );
     });
 };
@@ -178,7 +217,6 @@ export const getMyProfile = async (): Promise<UserProfile | null> => {
   const { data, error } = await supabase.from('profiles').select('*').eq('id', id).single();
   if (error || !data) return null;
   
-  // Load blocks
   await loadBlockedUsers(id);
 
   return mapDbProfileToApp(data);
@@ -196,7 +234,6 @@ export const createMyProfile = async (profileData: Partial<UserProfile>): Promis
   const id = user ? user.id : getCurrentUserId(); 
   if (!id) return null;
 
-  // Initialisation de l'Aura (Zero-Start)
   const initialAura = AuraEngine.initializeAura(profileData.bio || '', profileData.mbti || 'ISTJ');
 
   const payload = { 
@@ -210,7 +247,7 @@ export const createMyProfile = async (profileData: Partial<UserProfile>): Promis
         photos: profileData.photos,
         interests: profileData.interests,
         aura: initialAura,
-        is_verified: profileData.isVerified // Save verification status
+        is_verified: profileData.isVerified
   };
 
   const { data, error } = await supabase.from('profiles').upsert([payload]).select().single();
@@ -219,7 +256,7 @@ export const createMyProfile = async (profileData: Partial<UserProfile>): Promis
   if (data) {
       setCurrentUserId(data.id);
       const mapped = mapDbProfileToApp(data);
-      mapped.aura = initialAura; // Force local aura init
+      mapped.aura = initialAura;
       return mapped;
   }
   return null;
@@ -244,14 +281,12 @@ export const updateMyProfile = async (profile: UserProfile): Promise<UserProfile
 
     const { data } = await supabase.from('profiles').update(payload).eq('id', profile.id).select().single();
     
-    // Invalidate cache if we change settings
     if (discoveryCache) discoveryCache = null;
 
     return data ? mapDbProfileToApp(data) : profile;
 }
 
 export const upgradeToPremium = async (userId: string, tier: SubscriptionTier, durationDays: number = 30): Promise<boolean> => {
-    // Utilisation de la RPC PostgreSQL pour gérer les quotas (Rapports, SuperLikes, etc.)
     const { error } = await supabase.rpc('upgrade_user_subscription', {
         p_user_id: userId,
         p_tier: tier,
@@ -300,7 +335,6 @@ export const blockUser = async (blockerId: string, blockedId: string) => {
 
 // --- CORE: DISCOVERY & MATCHING ---
 
-// Helper: Fetch a single profile by ID (Defined before usage)
 const getProfileById = async (id: string): Promise<UserProfile | null> => {
     const { data } = await supabase.from('profiles').select('*').eq('id', id).single();
     return data ? mapDbProfileToApp(data) : null;
@@ -310,7 +344,6 @@ export const getDiscoveryProfiles = async (myProfile: UserProfile): Promise<User
   if (!myProfile) return [];
   resetProfileViewTimer();
 
-  // 1. Check Memory Cache
   if (discoveryCache && 
       discoveryCache.uid === myProfile.id && 
       (Date.now() - discoveryCache.timestamp < CACHE_TTL_MS) &&
@@ -321,7 +354,6 @@ export const getDiscoveryProfiles = async (myProfile: UserProfile): Promise<User
   let rawProfiles: any[] = [];
   let usedRpc = false;
 
-  // 2. Try Server-Side Matching (RPC) for Scalability
   try {
       const { data, error } = await supabase.rpc('get_compatible_profiles', { query_user_id: myProfile.id });
       
@@ -334,7 +366,6 @@ export const getDiscoveryProfiles = async (myProfile: UserProfile): Promise<User
           throw new Error("RPC Failed");
       }
   } catch (err) {
-      // 3. FALLBACK: Legacy Client-Side Matching
       console.log("⚠️ Using Legacy Client-Side Matching");
       
       const { data: swipedData } = await supabase.from('swipes').select('target_id').eq('swiper_id', myProfile.id);
@@ -362,24 +393,19 @@ export const getDiscoveryProfiles = async (myProfile: UserProfile): Promise<User
       }
   }
 
-  // 4. Map to App Format & Calculate Distance
   let profiles = rawProfiles.map(mapDbProfileToApp);
   
-  // 5. CLIENT-SIDE GEOLOCATION FILTERING & AURA SCORING
   const maxDist = myProfile.discoverySettings?.distance || 100;
 
   profiles = profiles.map(p => {
-      // Calculate real distance
       const dist = calculateDistanceKm(myProfile.location, p.location);
       return { ...p, distanceKm: dist };
   }).filter(p => {
-      // Filter by distance (if coordinates exist)
       if (myProfile.location && p.location) {
           return (p.distanceKm || 0) <= maxDist;
       }
-      return true; // If location missing, keep for now (or filter out strictly)
+      return true; 
   }).map(p => {
-      // Aura Scoring
       const { score, label, details } = calculateCompatibility(myProfile, p);
       return { ...p, compatibilityScore: score, compatibilityLabel: label, compatibilityDetails: details };
   });
@@ -388,7 +414,6 @@ export const getDiscoveryProfiles = async (myProfile: UserProfile): Promise<User
       profiles.sort((a, b) => (b.compatibilityScore || 0) - (a.compatibilityScore || 0));
   }
 
-  // 6. Set Cache
   if (profiles.length > 0) {
       discoveryCache = {
           uid: myProfile.id,
@@ -414,7 +439,6 @@ export const restoreLastSwipe = async (myProfile: UserProfile): Promise<UserProf
         const targetProfile = await getProfileById(data.target_id);
         if (targetProfile) {
             const { score, label, details } = calculateCompatibility(myProfile, targetProfile);
-            // Recalculate distance on restore
             const dist = calculateDistanceKm(myProfile.location, targetProfile.location);
             return { 
                 ...targetProfile, 
@@ -491,7 +515,6 @@ export const getPendingLikes = async (myProfile: UserProfile): Promise<UserProfi
     return profiles.map((p: any) => {
         const appProfile = mapDbProfileToApp(p);
         const { score, label, details } = calculateCompatibility(myProfile, appProfile);
-        // Calculate distance for pending likes too
         const dist = calculateDistanceKm(myProfile.location, appProfile.location);
         
         const isSuper = incoming.find((s: any) => s.swiper_id === p.id && s.direction === 'super');
@@ -573,13 +596,12 @@ const mapDbProfileToApp = (dbProfile: any): UserProfile => {
         photos: dbProfile.photos || [dbProfile.image_url],
         interests: dbProfile.interests || [],
         voiceAuraUrl: dbProfile.voice_aura_url,
-        // Mappage de la localisation
         location: (dbProfile.latitude && dbProfile.longitude) ? { latitude: dbProfile.latitude, longitude: dbProfile.longitude } : undefined,
         isPremium: dbProfile.is_premium,
         subscriptionTier: dbProfile.subscription_tier || (dbProfile.is_premium ? SubscriptionTier.GOLD : SubscriptionTier.FREE),
         dailyAuraAnswer: dbProfile.daily_aura_answer,
         isBoosted: dbProfile.is_boosted,
-        isVerified: dbProfile.is_verified, // Verification Status
+        isVerified: dbProfile.is_verified,
         aura: aura,
         notificationSettings: dbProfile.notification_settings,
         discoverySettings: dbProfile.discovery_settings
