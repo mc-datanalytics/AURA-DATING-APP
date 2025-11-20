@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aura</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Playfair+Display:ital,wght@0,600;1,600&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              serif: ['Playfair Display', 'serif'],
+            },
+            colors: {
+              aura: {
+                dark: '#0f0c29',
+                mid: '#302b63',
+                light: '#24243e',
+                accent: '#b06ab3',
+                glow: '#4568dc',
+              }
+            },
+            animation: {
+              'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'float': 'float 6s ease-in-out infinite',
+              'swipe-left': 'swipe-out-left 0.5s ease-out forwards',
+              'swipe-right': 'swipe-out-right 0.5s ease-out forwards',
+              'swipe-out-up': 'swipe-out-up 0.5s ease-out forwards',
+              'spin-slow': 'spin 3s linear infinite',
+              'fade-in': 'fadeIn 0.5s ease-out',
+              'scale-in': 'scaleIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+              'slide-up': 'slideUp 0.5s ease-out',
+              'slide-down': 'slideDown 0.5s ease-out',
+              'flip-in': 'flipIn 0.6s ease-out',
+            },
+            keyframes: {
+              float: {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '50%': { transform: 'translateY(-10px)' },
+              },
+              'swipe-out-left': {
+                '0%': { transform: 'translateX(0) rotate(0)', opacity: '1' },
+                '100%': { transform: 'translateX(-150%) rotate(-20deg)', opacity: '0' },
+              },
+              'swipe-out-right': {
+                '0%': { transform: 'translateX(0) rotate(0)', opacity: '1' },
+                '100%': { transform: 'translateX(150%) rotate(20deg)', opacity: '0' },
+              },
+              'swipe-out-up': {
+                '0%': { transform: 'translateY(0) scale(1)', opacity: '1' },
+                '100%': { transform: 'translateY(-150%) scale(0.5)', opacity: '0' },
+              },
+              fadeIn: {
+                '0%': { opacity: '0' },
+                '100%': { opacity: '1' },
+              },
+              scaleIn: {
+                '0%': { opacity: '0', transform: 'scale(0.8)' },
+                '100%': { opacity: '1', transform: 'scale(1)' },
+              },
+              slideUp: {
+                '0%': { transform: 'translateY(20px)', opacity: '0' },
+                '100%': { transform: 'translateY(0)', opacity: '1' },
+              },
+              slideDown: {
+                '0%': { transform: 'translateY(-20px)', opacity: '0' },
+                '100%': { transform: 'translateY(0)', opacity: '1' },
+              },
+              flipIn: {
+                '0%': { transform: 'rotateY(90deg)', opacity: '0' },
+                '100%': { transform: 'rotateY(0)', opacity: '1' },
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      body {
+        background: linear-gradient(to bottom, #0f0c29, #302b63, #24243e);
+        color: white;
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+      }
+      #root {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+      }
+      /* Glassmorphism utilities */
+      .glass {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .glass-card {
+        background: rgba(20, 20, 30, 0.6);
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      /* Custom Scrollbar */
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 4px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: rgba(0,0,0,0.1);
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(255,255,255,0.2);
+        border-radius: 10px;
+      }
+      .mask-image-gradient {
+          mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
+          -webkit-mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
+      }
+      /* Shimmer Effect for Skeletons */
+      .shimmer {
+        background: #2d3748;
+        background-image: linear-gradient(to right, #2d3748 0%, #4a5568 20%, #2d3748 40%, #2d3748 100%);
+        background-repeat: no-repeat;
+        background-size: 800px 100%; 
+        animation: shimmer 1.5s infinite linear forwards; 
+      }
+      @keyframes shimmer {
+        0% { background-position: -800px 0; }
+        100% { background-position: 800px 0; }
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.0",
+    "react-dom/client": "https://aistudiocdn.com/react-dom@^19.2.0/client",
+    "recharts": "https://aistudiocdn.com/recharts@^3.4.1",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
+    "clsx": "https://aistudiocdn.com/clsx@^2.1.1",
+    "@supabase/supabase-js": "https://aistudiocdn.com/@supabase/supabase-js@2.39.3/dist/main.js",
+    "react-router-dom": "https://esm.sh/react-router-dom@6.22.3?external=react,react-dom",
+    "@remix-run/router": "https://esm.sh/@remix-run/router@1.15.3"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
